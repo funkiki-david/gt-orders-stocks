@@ -8,6 +8,7 @@ import type {
   InventoryMovement,
   PalletLocation,
   PalletStockItem,
+  Reservation,
   SalesOrderDetail,
   SalesOrderSummary,
   Sku,
@@ -538,34 +539,6 @@ export function InventoryPage({ mode = "products" }: InventoryPageProps) {
     setMovementPage(1);
   }, [movementSearch, movementTypeFilter, movementWarehouseFilter, movementPalletFilter, movementUserFilter, movementDateFromFilter, movementDateToFilter]);
 
-  useEffect(() => {
-    if (movementForm.movementType !== "OUTBOUND" || !selectedShipOrder) {
-      return;
-    }
-
-    const currentReservation = selectedShipOrder.reservations.find(
-      (reservation) =>
-        reservation.skuId === movementForm.skuId &&
-        reservation.status === "ACTIVE" &&
-        reservation.quantityReserved > 0,
-    );
-    const nextReservation =
-      currentReservation ??
-      selectedShipOrder.reservations.find(
-        (reservation) => reservation.status === "ACTIVE" && reservation.quantityReserved > 0,
-      );
-
-    if (!nextReservation) {
-      return;
-    }
-
-    setMovementForm((current) => ({
-      ...current,
-      skuId: nextReservation.skuId,
-      quantity: current.referenceId === selectedShipOrder.id ? String(nextReservation.quantityReserved) : current.quantity,
-    }));
-  }, [movementForm.movementType, movementForm.skuId, selectedShipOrder]);
-
   function handleCreateSku(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     createSkuMutation.mutate();
@@ -693,7 +666,7 @@ export function InventoryPage({ mode = "products" }: InventoryPageProps) {
   const totalSkuPages = Math.max(1, Math.ceil((skusQuery.data?.pagination.total ?? 0) / skuPageSize));
   const totalMovementPages = Math.max(1, Math.ceil((movementsQuery.data?.pagination.total ?? 0) / movementPageSize));
   const selectedShipOrder = selectedShipOrderQuery.data;
-  const selectedShipOrderReservations = selectedShipOrder?.reservations.filter(
+  const selectedShipOrderReservations: Reservation[] = selectedShipOrder?.reservations.filter(
     (reservation) => reservation.status === "ACTIVE" && reservation.quantityReserved > 0,
   ) ?? [];
   const selectedShipReservation = selectedShipOrderReservations.find(
@@ -710,6 +683,34 @@ export function InventoryPage({ mode = "products" }: InventoryPageProps) {
   const warehouseLevelActionBalance = actionSkuBalances.find(
     (balance) => balance.warehouseId === movementForm.warehouseId && !balance.palletLocationId,
   );
+
+  useEffect(() => {
+    if (movementForm.movementType !== "OUTBOUND" || !selectedShipOrder) {
+      return;
+    }
+
+    const currentReservation = selectedShipOrder.reservations.find(
+      (reservation) =>
+        reservation.skuId === movementForm.skuId &&
+        reservation.status === "ACTIVE" &&
+        reservation.quantityReserved > 0,
+    );
+    const nextReservation =
+      currentReservation ??
+      selectedShipOrder.reservations.find(
+        (reservation) => reservation.status === "ACTIVE" && reservation.quantityReserved > 0,
+      );
+
+    if (!nextReservation) {
+      return;
+    }
+
+    setMovementForm((current) => ({
+      ...current,
+      skuId: nextReservation.skuId,
+      quantity: current.referenceId === selectedShipOrder.id ? String(nextReservation.quantityReserved) : current.quantity,
+    }));
+  }, [movementForm.movementType, movementForm.skuId, selectedShipOrder]);
 
   function warehouseNameById(warehouseId: string) {
     return warehouses.find((warehouse) => warehouse.id === warehouseId)?.name ?? "";
@@ -963,7 +964,7 @@ export function InventoryPage({ mode = "products" }: InventoryPageProps) {
                     className="w-full rounded-md border border-neutral-300 px-3 py-2"
                     disabled={movementForm.movementType === "OUTBOUND" && !movementForm.referenceId}
                     onChange={(event) => {
-                      const reservation = selectedShipOrderReservations.find((item) => item.skuId === event.target.value);
+                      const reservation = selectedShipOrderReservations.find((item: Reservation) => item.skuId === event.target.value);
                       setMovementForm((current) => ({
                         ...current,
                         skuId: event.target.value,
@@ -976,13 +977,17 @@ export function InventoryPage({ mode = "products" }: InventoryPageProps) {
                     <option value="">
                       {movementForm.movementType === "OUTBOUND" ? "Select order SKU" : "Select SKU"}
                     </option>
-                    {(movementForm.movementType === "OUTBOUND" ? selectedShipOrderReservations : skuOptions).map((item) => (
-                      <option key={item.id} value={movementForm.movementType === "OUTBOUND" ? item.skuId : item.id}>
-                        {movementForm.movementType === "OUTBOUND"
-                          ? `${item.skuCode} · ${item.productName} · reserved ${item.quantityReserved}`
-                          : `${item.skuCode} · ${item.productName}`}
-                      </option>
-                    ))}
+                    {movementForm.movementType === "OUTBOUND"
+                      ? selectedShipOrderReservations.map((reservation: Reservation) => (
+                          <option key={reservation.id} value={reservation.skuId}>
+                            {reservation.skuCode} · {reservation.productName} · reserved {reservation.quantityReserved}
+                          </option>
+                        ))
+                      : skuOptions.map((sku) => (
+                          <option key={sku.id} value={sku.id}>
+                            {sku.skuCode} · {sku.productName}
+                          </option>
+                        ))}
                   </select>
                   {movementForm.movementType === "OUTBOUND" && selectedShipOrder && !selectedShipOrderReservations.length ? (
                     <span className="text-xs text-amber-700">This confirmed order has no active reservation to ship.</span>
@@ -1134,7 +1139,7 @@ export function InventoryPage({ mode = "products" }: InventoryPageProps) {
                       value={movementForm.toPalletLocationId}
                     >
                       <option value="">Select destination pallet</option>
-                      {movementToPallets.map((pallet) => (
+                      {movementToPallets.map((pallet: PalletLocation) => (
                         <option key={pallet.id} value={pallet.id}>
                           {pallet.code} · {pallet.zone ?? "La Mirada"}
                         </option>
@@ -1159,16 +1164,17 @@ export function InventoryPage({ mode = "products" }: InventoryPageProps) {
                   <option value="">
                     {movementForm.movementType === "OUTBOUND" ? "Select source pallet" : "Select pallet"}
                   </option>
-                  {(movementForm.movementType === "OUTBOUND" ? pickablePalletBalances : movementWarehousePallets).map((item) => (
-                    <option
-                      key={movementForm.movementType === "OUTBOUND" ? item.id : item.id}
-                      value={movementForm.movementType === "OUTBOUND" ? item.palletLocationId : item.id}
-                    >
-                      {movementForm.movementType === "OUTBOUND"
-                        ? `${item.palletCode} · available ${item.available}`
-                        : `${item.code} · ${item.zone ?? "La Mirada"}`}
-                    </option>
-                  ))}
+                  {movementForm.movementType === "OUTBOUND"
+                    ? pickablePalletBalances.map((balance: SkuLocationBalance) => (
+                        <option key={balance.id} value={balance.palletLocationId ?? ""}>
+                          {balance.palletCode} · available {balance.available}
+                        </option>
+                      ))
+                    : movementWarehousePallets.map((pallet: PalletLocation) => (
+                        <option key={pallet.id} value={pallet.id}>
+                          {pallet.code} · {pallet.zone ?? "La Mirada"}
+                        </option>
+                      ))}
                 </select>
                 {movementForm.movementType === "OUTBOUND" && movementForm.skuId && !pickablePalletBalances.length ? (
                   <span className="text-xs text-amber-700">No pallet currently has available stock for this SKU in this warehouse.</span>

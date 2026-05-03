@@ -14,28 +14,13 @@ The project is a shared monorepo. Keep both app services pointed at the reposito
 
 ## Backend Service
 
-Build command:
-
-```sh
-npm run build:backend
-```
-
-Pre-deploy command:
-
-```sh
-npm run deploy:backend
-```
-
-Start command:
-
-```sh
-npm run start:backend
-```
+The backend service uses `backend/Dockerfile`. Set `RAILWAY_DOCKERFILE_PATH=backend/Dockerfile`.
 
 Variables:
 
 ```env
 NODE_ENV=production
+RAILWAY_DOCKERFILE_PATH=backend/Dockerfile
 DATABASE_URL=${{ Postgres.DATABASE_URL }}
 JWT_SECRET=<generate-a-long-random-secret>
 ALLOWED_ORIGINS=https://${{ frontend.RAILWAY_PUBLIC_DOMAIN }}
@@ -47,21 +32,12 @@ After tester accounts are created, switch `SEED_DEFAULT_USERS` to `false` before
 
 ## Frontend Service
 
-Build command:
-
-```sh
-npm run build:frontend
-```
-
-Start command:
-
-```sh
-npm run start:frontend
-```
+The frontend service uses `frontend/Dockerfile`. Set `RAILWAY_DOCKERFILE_PATH=frontend/Dockerfile`.
 
 Variables:
 
 ```env
+RAILWAY_DOCKERFILE_PATH=frontend/Dockerfile
 VITE_API_BASE_URL=https://${{ backend.RAILWAY_PUBLIC_DOMAIN }}/api
 ```
 
@@ -88,5 +64,6 @@ All three use `DEFAULT_USER_PASSWORD`.
 ## Known Test-Stage Risks
 
 - This uses `prisma db push` instead of migration files because this project does not have Prisma migrations yet.
+- For this early test deployment, the backend Dockerfile runs `prisma db push` before starting the API.
 - Default test users are convenient but should not remain enabled beyond early controlled testing.
 - The frontend API URL is build-time configuration; redeploy frontend after changing it.
