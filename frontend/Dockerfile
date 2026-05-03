@@ -11,4 +11,4 @@ COPY . .
 RUN npm run build:frontend
 
 ENV NODE_ENV=production
-CMD ["sh", "-c", "npm run start:frontend"]
+CMD ["sh", "-c", "npx --yes serve@14.2.4 -s frontend/dist -l tcp://0.0.0.0:${PORT:-4173}"]
