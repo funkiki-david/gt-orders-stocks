@@ -1,0 +1,22 @@
+{
+  "name": "gt-orders-stocks",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "build:backend": "npm --workspace gt-orders-stocks-backend run prisma:generate && npm --workspace gt-orders-stocks-backend run build",
+    "start:backend": "npm --workspace gt-orders-stocks-backend run start",
+    "deploy:backend": "prisma db push --schema prisma/schema.prisma",
+    "build:frontend": "npm --workspace gt-orders-stocks-frontend run build",
+    "start:frontend": "npm --workspace gt-orders-stocks-frontend run preview -- --host 0.0.0.0 --port ${PORT:-4173}"
+  },
+  "devDependencies": {
+    "prisma": "^5.22.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0"
+  }
+}

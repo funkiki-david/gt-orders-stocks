@@ -1,0 +1,136 @@
+Warehouse	Pallet Location	SKU	Count	Product Name	Category
+La Mirada CA	04A02-1	1000-152R-GP	1	"54"" Matte White Removable Standard"	Standard
+La Mirada CA	04A02-2	1000-4201X-GP	2	"54"" Silver Chrome Standard"	Standard
+La Mirada CA	04A04-1	1000-152GP	2	"54"" Matte White Permanent Standard"	Standard
+La Mirada CA	04A04-1	1000-4202X-GP	1	"54"" Gold Chrome Standard"	Standard
+La Mirada CA	04A06-1	1000-151-GP-Short	5	"54"" Gloss White Short Size"	Short Size
+La Mirada CA	04A06-1	1000-151GP	1	"54"" Gloss White Permanent Standard"	Standard
+La Mirada CA	04A06-1	1000-152R-GP	1	"54"" Matte White Removable Standard"	Standard
+La Mirada CA	04A06-1	1000-152R-GP-Short	3	"54"" Matte White Removable Short Size"	Short Size
+La Mirada CA	04A06-1	1000-H01X-GP	2	"54"" Holographic Silver Standard"	Standard
+La Mirada CA	04A06-1	1000-H01X-GP-Short	1	"54"" Holographic Silver Short Size"	Short Size
+La Mirada CA	04A09-1	1000-4201X-GP	1	"54"" Silver Chrome Standard"	Standard
+La Mirada CA	04A09-1	1000-4201X-GP-Short	8	"54"" Silver Chrome Short Size"	Short Size
+La Mirada CA	04A09-1	1000-4202X-GP	1	"54"" Gold Chrome Standard"	Standard
+La Mirada CA	04A09-1	1000-4202X-GP-Short	7	"54"" Gold Chrome Short Size"	Short Size
+La Mirada CA	04A09-2	1000-151-20GP-Short	4	"20"" Gloss White Short Size"	Short Size
+La Mirada CA	04A09-2	1000-151-30GP-Short	1	"30"" Gloss White Short Size"	Short Size
+La Mirada CA	04A09-2	1000-151-GP	2	"54"" Gloss White Permanent Standard"	Standard
+La Mirada CA	04A09-2	1000-152-20GP-Short	1	"20"" Matte White Short Size"	Short Size
+La Mirada CA	04A09-2	1000-152-30GP-Short	3	"30"" Matte White Short Size"	Short Size
+La Mirada CA	04A09-2	1000-152-GP	1	54” 6mil high matte white permanent Standard	Standard
+La Mirada CA	04A09-2	1000-152R-30GP-Short	1	"30"" Matte White Removable Short Size"	Short Size
+La Mirada CA	04A11-2	1000-152R-GP	1	"54"" Matte White Removable Standard"	Standard
+La Mirada CA	04A11-2	1000-4202X-GP	2	"54"" Gold Chrome Standard"	Standard
+La Mirada CA	04A13-1	1000-152-30GP	1	"30"" Matte White Permanent Standard"	Standard
+La Mirada CA	04A13-1	1000-152R-30GP	1	"30"" Matte White Removable Standard"	Standard
+La Mirada CA	04A13-1	1000-4201X-30GP	1	"30"" Silver Chrome Standard"	Standard
+La Mirada CA	04A13-1	1000-H01X-30GP	1	"30"" Holographic Silver Standard"	Standard
+La Mirada CA	04A13-2	1000-151-30GP	1	"30"" Gloss White Permanent Standard"	Standard
+La Mirada CA	04A13-2	1000-152-30GP	1	"30"" Matte White Permanent Standard"	Standard
+La Mirada CA	04A13-2	1000-152R-30GP	1	"30"" Matte White Removable Standard"	Standard
+La Mirada CA	04A13-2	1000-152R-GP	1	"54"" Matte White Removable Standard"	Standard
+La Mirada CA	04A13-2	1000-4201X-30GP	1	"30"" Silver Chrome Standard"	Standard
+La Mirada CA	04A13-2	1000-4201X-30GP-Short	7	"30"" Silver Chrome Short Size"	Short Size
+La Mirada CA	04A13-2	1000-4202X-30GP	4	"30"" Gold Chrome Standard"	Standard
+La Mirada CA	04A13-2	1000-4202X-30GP-Short	1	"30"" Gold Chrome Short Size"	Short Size
+La Mirada CA	04A13-2	1000-H01X-30GP	1	"30"" Holographic Silver Standard"	Standard
+La Mirada CA	04A13-2	1000-H01X-30GP-Short	8	"30"" Holographic Silver Short Size"	Short Size
+La Mirada CA	04A19-1	1000-151-30GP	1	"30"" Gloss White Permanent Standard"	Standard
+La Mirada CA	04A19-1	1000-152-30GP	1	"30"" Matte White Permanent Standard"	Standard
+La Mirada CA	04A19-1	1000-152R-30GP	1	"30"" Matte White Removable Standard"	Standard
+La Mirada CA	04A19-1	1000-4202X-30GP	2	"30"" Gold Chrome Standard"	Standard
+La Mirada CA	04A19-1	1000-H01X-30GP	2	"30"" Holographic Silver Standard"	Standard
+La Mirada CA	04A19-2	1000-152-30GP	1	"30"" Matte White Permanent Standard"	Standard
+La Mirada CA	04A19-2	1000-152R-30GP	1	"30"" Matte White Removable Standard"	Standard
+La Mirada CA	04A19-2	1000-4201X-30GP	1	"30"" Silver Chrome Standard"	Standard
+La Mirada CA	04A19-2	1000-H01X-30GP	1	"30"" Holographic Silver Standard"	Standard
+La Mirada CA	04A21-1	1000-151-30GP	1	"30"" Gloss White Permanent Standard"	Standard
+La Mirada CA	04A21-1	1000-152-30GP	1	"30"" Matte White Permanent Standard"	Standard
+La Mirada CA	04A21-1	1000-152R-30GP	1	"30"" Matte White Removable Standard"	Standard
+La Mirada CA	04A21-1	1000-4201X-30GP	1	"30"" Silver Chrome Standard"	Standard
+La Mirada CA	04A21-1	1000-4202X-30GP	1	"30"" Gold Chrome Standard"	Standard
+La Mirada CA	04A21-1	1000-H01X-30GP	1	"30"" Holographic Silver Standard"	Standard
+La Mirada CA	04A21-2	1000-152-30GP	1	"30"" Matte White Permanent Standard"	Standard
+La Mirada CA	04A21-2	1000-152R-30GP	1	"30"" Matte White Removable Standard"	Standard
+La Mirada CA	04A21-2	1000-4201X-30GP	1	"30"" Silver Chrome Standard"	Standard
+La Mirada CA	04A21-2	1000-H01X-30GP	1	"30"" Holographic Silver Standard"	Standard
+La Mirada CA	04A23-1	1000-151-30GP	1	"30"" Gloss White Permanent Standard"	Standard
+La Mirada CA	04A23-1	1000-152-30GP	1	"30"" Matte White Permanent Standard"	Standard
+La Mirada CA	04A23-1	1000-152R-30GP	1	"30"" Matte White Removable Standard"	Standard
+La Mirada CA	04A23-1	1000-4201X-30GP	1	"30"" Silver Chrome Standard"	Standard
+La Mirada CA	04A23-1	1000-4202X-30GP	1	"30"" Gold Chrome Standard"	Standard
+La Mirada CA	04A23-1	1000-H01X-30GP	1	"30"" Holographic Silver Standard"	Standard
+La Mirada CA	04A23-2	1000-152-30GP	2	"30"" Matte White Permanent Standard"	Standard
+La Mirada CA	04A23-2	1000-152R-30GP	1	"30"" Matte White Removable Standard"	Standard
+La Mirada CA	04A23-2	1000-4201X-30GP	3	"30"" Silver Chrome Standard"	Standard
+La Mirada CA	04A23-2	1000-H01X-30GP	3	"30"" Holographic Silver Standard"	Standard
+La Mirada CA	04A25-1	1000-151-20GP	1	"20"" Gloss White Permanent Standard"	Standard
+La Mirada CA	04A25-1	1000-152-20GP	3	"20"" Matte White Permanent Standard"	Standard
+La Mirada CA	04A25-1	1000-152R-20GP	3	"20"" Matte White Removable Standard"	Standard
+La Mirada CA	04A25-1	1000-4201X-20GP	3	"20"" Silver Chrome Standard"	Standard
+La Mirada CA	04A25-1	1000-4201X-20GP-Short	7	"20"" Silver Chrome Short Size"	Short Size
+La Mirada CA	04A25-1	1000-4202X-20GP	2	"20"" Gold Chrome Standard"	Standard
+La Mirada CA	04A25-1	1000-4202X-20GP-Short	1	"20"" Gold Chrome Short Size"	Short Size
+La Mirada CA	04A25-1	1000-H01X-20GP	2	"20"" Holographic Silver Standard"	Standard
+La Mirada CA	04A25-1	1000-H01X-20GP-Short	9	"20"" Holographic Silver Short Size"	Short Size
+La Mirada CA	04A25-2	1000-151-20GP	1	"20"" Gloss White Permanent Standard"	Standard
+La Mirada CA	04A25-2	1000-152-20GP	1	"20"" Matte White Permanent Standard"	Standard
+La Mirada CA	04A25-2	1000-152R-20GP	1	"20"" Matte White Removable Standard"	Standard
+La Mirada CA	04A25-2	1000-4201X-20GP	1	"20"" Silver Chrome Standard"	Standard
+La Mirada CA	04A25-2	1000-4202X-20GP	2	"20"" Gold Chrome Standard"	Standard
+La Mirada CA	04A25-2	1000-H01X-20GP	1	"20"" Holographic Silver Standard"	Standard
+La Mirada CA	04A27-1	1000-151-20GP	1	"20"" Gloss White Permanent Standard"	Standard
+La Mirada CA	04A27-1	1000-152-20GP	1	"20"" Matte White Permanent Standard"	Standard
+La Mirada CA	04A27-1	1000-152R-20GP	1	"20"" Matte White Removable Standard"	Standard
+La Mirada CA	04A27-1	1000-4201X-20GP	1	"20"" Silver Chrome Standard"	Standard
+La Mirada CA	04A27-1	1000-4202X-20GP	1	"20"" Gold Chrome Standard"	Standard
+La Mirada CA	04A27-1	1000-H01X-20GP	1	"20"" Holographic Silver Standard"	Standard
+La Mirada CA	04A27-2	1000-151-20GP	1	"20"" Gloss White Permanent Standard"	Standard
+La Mirada CA	04A27-2	1000-152-20GP	1	"20"" Matte White Permanent Standard"	Standard
+La Mirada CA	04A27-2	1000-152R-20GP	1	"20"" Matte White Removable Standard"	Standard
+La Mirada CA	04A27-2	1000-4201X-20GP	1	"20"" Silver Chrome Standard"	Standard
+La Mirada CA	04A27-2	1000-4202X-20GP	1	"20"" Gold Chrome Standard"	Standard
+La Mirada CA	04A27-2	1000-991GX-GP	1	"54"" polymeric gloss white permanent Standard"	Standard
+La Mirada CA	04A29-1	1000-H01X-20GP	1	"20"" Holographic Silver Standard"	Standard
+La Mirada CA	05A01-1	1000-151-GP	1	"54"" Gloss White Permanent Standard"	Standard
+La Mirada CA	05A01-1	1000-152-GP	1	54” 6mil high matte white permanent Standard	Standard
+La Mirada CA	05A01-1	1000-4201X-GP-Short	5	"54"" Silver Chrome Short Size"	Short Size
+La Mirada CA	05A01-1	1000-4202X-GP-Short	1	"54"" Gold Chrome Short Size"	Short Size
+La Mirada CA	05A01-1	200-P175-GP-Short	5	"54"" Polymeric Gloss Clear Laminate short size"	Short Size
+La Mirada CA	05A01-2	1000-151-GP-Short	4	"54"" Gloss White Short Size"	Short Size
+La Mirada CA	05A01-2	1000-991GX-GP-Short	1	"54"" polymeric gloss white permanent Short Size"	Short Size
+La Mirada CA	05A01-2	1000-H01X-GP-Short	1	"54"" Holographic Silver Short Size"	Short Size
+La Mirada CA	05A01-2	1000-P990-GP-Short	3	54” polymeric optically clear permanent short size	Short Size
+La Mirada CA	05A01-2	1000-P990R-GP-Short	2	54” polymeric optically clear removable short size	Short Size
+La Mirada CA	05A01-2	200-P175-GP-Short	1	"54"" Polymeric Gloss Clear Laminate short size"	Short Size
+La Mirada CA	05A05-2	200-P175-GP	1	"54"" Polymeric Gloss Clear Laminate Standard"	Standard
+La Mirada CA	05A07-1	1000-151-GP-Sample	1	1000-151-GP-Sample	Sample
+La Mirada CA	05A07-1	1000-152-GP-Sample	1	1000-152-GP-Sample	Sample
+La Mirada CA	05A07-1	1000-P990-GP-Sample	2	1000-P990-GP-Sample	Sample
+La Mirada CA	05A07-1	1000-P990R-GP-Sample	1	1000-P990R-GP-Sample	Sample
+La Mirada CA	05A07-1	200-P175-GP-Sample	1	200-P175-GP-Sample	Sample
+La Mirada CA	05A07-1	610MW-36GP-Sample	2	610MW-36GP-Sample	Sample
+La Mirada CA	05A07-2	1000-4201X-GP-Sample	4	"Silver chrome printable sample roll 20""X50'"	Sample
+La Mirada CA	05A07-2	1000-4202X-GP-Sample	2	1000-4202X-GP-Sample	Sample
+La Mirada CA	05A07-2	1000-991GX-GP-Sample	2	1000-991GX-GP-Sample	Sample
+La Mirada CA	05A07-2	1000-H01X-GP-Sample	1	1000-H01X-GP-Sample	Sample
+La Mirada CA	05A07-2	1000-P990R-GP-Sample	2	1000-P990R-GP-Sample	Sample
+La Mirada CA	05A07-2	200-P175-GP-Sample	1	200-P175-GP-Sample	Sample
+La Mirada CA	05A09-1	1000-991GX-GP	1	"54"" polymeric gloss white permanent Standard"	Standard
+La Mirada CA	05A09-1	1000-991GX-GP-Short	3	"54"" polymeric gloss white permanent Short Size"	Short Size
+La Mirada CA	05A11-1	1000-H01X-GP	2	"54"" Holographic Silver Standard"	Standard
+La Mirada CA	05A11-1	1000-H01X-GP-Short	7	"54"" Holographic Silver Short Size"	Short Size
+La Mirada CA	05A11-2	1000-4201X-GP	2	"54"" Silver Chrome Standard"	Standard
+La Mirada CA	05A11-2	1000-P990-GP	1	54” polymeric optically clear permanent Standard	Standard
+La Mirada CA	05A11-2	200-P175-GP	2	"54"" Polymeric Gloss Clear Laminate Standard"	Standard
+La Mirada CA	05A13-1	1000-P990-GP	2	54” polymeric optically clear permanent Standard	Standard
+La Mirada CA	05A13-2	1000-152-GP	3	54” 6mil high matte white permanent Standard	Standard
+La Mirada CA	05A13-2	610MW-36GP	2	"36"" Roll-up Banner Standard"	Standard
+La Mirada CA	05A15-2	1000-151-GP	1	"54"" Gloss White Permanent Standard"	Standard
+La Mirada CA	05A15-2	1000-151-GP-Short	2	"54"" Gloss White Short Size"	Short Size
+La Mirada CA	Unknown Pallet Location	1000-H01X-GP-Sample	7	1000-H01X-GP-Sample	Sample
+La Mirada CA	Unknown Pallet Location	1000-4202X-GP-Sample	1	1000-4202X-GP-Sample	Sample
+La Mirada CA	Unknown Pallet Location	1000-H01X-20GP	1	"20"" Holographic Silver Standard"	Standard
+La Mirada CA	Unknown Pallet Location	1000-H01X-30GP	1	1000-H01X-30GP	Standard
+La Mirada CA	Unknown Pallet Location	1000-P990-GP-Sample	1	1000-P990-GP-Sample	Sample
