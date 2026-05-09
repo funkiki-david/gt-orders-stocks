@@ -33,6 +33,10 @@ export type SalesOrderLineItem = {
   total: number;
 };
 
+export type FulfillmentStatus = 'Open' | 'Shipped' | 'Billed Closed' | 'Cancelled';
+export type PaymentStatus = 'Unpaid' | 'Paid' | 'No Charge';
+export type CancelReason = 'Customer Cancelled' | 'Out of Stock' | 'Wrong Order' | 'Other' | '';
+
 export type SalesOrder = {
   invoice: string;
   date: string;
@@ -46,4 +50,8 @@ export type SalesOrder = {
   items: SalesOrderLineItem[];
   totalQty: number;
   subtotal: number;
+  fulfillmentStatus?: FulfillmentStatus;
+  paymentStatus?: PaymentStatus;
+  cancelReason?: CancelReason;
+  statusNotes?: string;
 };
