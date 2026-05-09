@@ -9,7 +9,6 @@ import { Button } from '@/components/Button';
 import { DataTable } from '@/components/DataTable';
 import { Drawer } from '@/components/Drawer';
 import { FormField } from '@/components/FormField';
-import { MetricCard } from '@/components/MetricCard';
 import { PageHeader } from '@/components/PageHeader';
 import { SearchBar } from '@/components/SearchBar';
 import { formatCurrency } from '@/lib/format';
@@ -122,7 +121,6 @@ export default function CustomersPage() {
 
   const selectedCustomerOrders = useMemo(() => {
     if (!selectedCustomer) return [];
-
     return orders.filter((order) => order.customer.toLowerCase() === selectedCustomer.name.toLowerCase());
   }, [orders, selectedCustomer]);
 
@@ -142,10 +140,7 @@ export default function CustomersPage() {
   function handleSortChange(value: CustomerSortKey) {
     setSortKey(value);
     const sorted = sortCustomers(filteredCustomers, value);
-
-    if (sorted.length > 0) {
-      selectCustomer(sorted[0]);
-    }
+    if (sorted.length > 0) selectCustomer(sorted[0]);
   }
 
   function openEditCustomerDrawer(customer: Customer) {
@@ -417,8 +412,8 @@ function CustomerDetailPanel({
   const paymentStatuses = Array.from(new Set(orders.map((order) => order.payment).filter(Boolean))).join(' / ') || '—';
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+    <section className="rounded-xl border border-border bg-card p-4">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-title text-base font-semibold text-primaryText">{customer.name}</h2>
           <p className="mt-1 text-xs text-helperText">Customer profile, order history, and quick order actions.</p>
@@ -426,14 +421,14 @@ function CustomerDetailPanel({
         <Button onClick={() => onEditCustomer(customer)}>Edit Customer</Button>
       </div>
 
-      <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-4">
-        <MetricCard label="Orders" value={orders.length} />
-        <MetricCard label="Sales Total" value={formatCurrency(customerSalesTotal || customer.total)} />
-        <MetricCard label="Order Payment Status" value={paymentStatuses} />
-        <MetricCard label="Last Order" value={customer.lastOrder || '—'} />
+      <div className="mb-4 flex flex-wrap gap-x-5 gap-y-1 rounded-xl border border-border bg-page px-3 py-2 text-xs text-secondaryText">
+        <span>Orders: {orders.length}</span>
+        <span>Sales Total: {formatCurrency(customerSalesTotal || customer.total)}</span>
+        <span>Payment Status: {paymentStatuses}</span>
+        <span>Last Order: {customer.lastOrder || '—'}</span>
       </div>
 
-      <div className="mb-5 rounded-xl border border-border bg-page p-4">
+      <div className="mb-4 rounded-xl border border-border bg-page p-4">
         <div className="mb-3 font-title text-base font-semibold text-primaryText">Customer Profile</div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <ReadOnlyField label="Company Name" value={customer.name} />
@@ -446,6 +441,10 @@ function CustomerDetailPanel({
           <ReadOnlyField label="Default Shipping Address" value={customer.shippingAddress || 'Not set'} />
         </div>
         {customer.notes ? <div className="mt-3 text-sm text-secondaryText">Notes: {customer.notes}</div> : null}
+      </div>
+
+      <div className="mb-3 rounded-xl bg-warningBg p-3 text-sm text-warningText">
+        <strong>Step 2A:</strong> Click one order below. <strong>Step 2B:</strong> Review its line items in Selected Order Detail.
       </div>
 
       <div className="mb-4">
