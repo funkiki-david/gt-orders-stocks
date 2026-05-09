@@ -3,6 +3,7 @@ export type InventoryItem = {
   name: string;
   category: string;
   qty: number;
+  palletLocation?: string;
 };
 
 export type Customer = {
