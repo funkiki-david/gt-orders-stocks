@@ -13,6 +13,13 @@ export type Customer = {
   payment: string;
   salesRep: string;
   lastOrder: string;
+  contactPerson?: string;
+  phone?: string;
+  email?: string;
+  billingAddress?: string;
+  shippingAddress?: string;
+  paymentTerm?: string;
+  notes?: string;
 };
 
 export type SalesOrderLineItem = {
