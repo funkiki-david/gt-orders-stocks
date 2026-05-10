@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import ordersSeed from '@/data/orders-seed.json';
 import { AppShell } from '@/components/AppShell';
 import { Button } from '@/components/Button';
@@ -64,6 +65,7 @@ function sortOrders(orders: SalesOrder[], sortKey: SortKey) {
 }
 
 export default function SalesOrdersPage() {
+  const searchParams = useSearchParams();
   const [orders, setOrders] = useState<SalesOrder[]>((ordersSeed as SalesOrder[]).map((order) => normalizeOrder(order)));
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('date-desc');
@@ -71,6 +73,19 @@ export default function SalesOrdersPage() {
   const [editingLine, setEditingLine] = useState<SalesOrderLineItem | null>(null);
   const [draftLine, setDraftLine] = useState<SalesOrderLineItem | null>(null);
   const [statusDraft, setStatusDraft] = useState<StatusDraft | null>(null);
+
+  useEffect(() => {
+    const requestedSalesOrder = searchParams.get('salesOrder') ?? searchParams.get('invoice');
+
+    if (!requestedSalesOrder) return;
+
+    const matchedOrder = orders.find((order) => order.invoice === requestedSalesOrder);
+
+    if (matchedOrder) {
+      setSelectedInvoice(matchedOrder.invoice);
+      setQuery(matchedOrder.invoice);
+    }
+  }, [orders, searchParams]);
 
   const filteredOrders = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
