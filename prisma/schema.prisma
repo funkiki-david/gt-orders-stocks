@@ -1,0 +1,99 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum FulfillmentStatus {
+  OPEN
+  SHIPPED
+  BILLED_CLOSED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+  NO_CHARGE
+}
+
+enum CancelReason {
+  CUSTOMER_CANCELLED
+  OUT_OF_STOCK
+  WRONG_ORDER
+  OTHER
+}
+
+model Product {
+  id             String   @id @default(cuid())
+  skuCode        String   @unique
+  productName    String
+  category       String?
+  qtyCtn         Int      @default(0)
+  palletLocation String?
+  sellingPrice   Decimal? @db.Decimal(10, 2)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Customer {
+  id              String       @id @default(cuid())
+  companyName     String       @unique
+  contactPerson   String?
+  phone           String?
+  email           String?
+  billingAddress  String?
+  shippingAddress String?
+  paymentTerm     String?
+  notes           String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  salesOrders     SalesOrder[]
+}
+
+model SalesOrder {
+  id                String            @id @default(cuid())
+  salesOrderNumber  String            @unique
+  orderDate         DateTime?
+  shipDate          DateTime?
+  customerId        String?
+  customer          Customer?         @relation(fields: [customerId], references: [id])
+  customerSnapshot  String
+  poNumber          String?
+  paymentInfo       String?
+  shipMethod        String?
+  shipCost          Decimal?          @db.Decimal(10, 2)
+  salesRep          String?
+  fulfillmentStatus FulfillmentStatus @default(OPEN)
+  paymentStatus     PaymentStatus     @default(UNPAID)
+  cancelReason      CancelReason?
+  statusNotes       String?
+  subtotal          Decimal           @default(0) @db.Decimal(12, 2)
+  totalQty          Int               @default(0)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  items             SalesOrderItem[]
+}
+
+model SalesOrderItem {
+  id                    String     @id @default(cuid())
+  salesOrderId          String
+  salesOrder            SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  skuCode               String
+  productDescription    String
+  width                 String?
+  length                String?
+  category              String?
+  qtyCtn                Int        @default(0)
+  unitPrice             Decimal    @default(0) @db.Decimal(10, 2)
+  total                 Decimal    @default(0) @db.Decimal(12, 2)
+  palletLocationSnapshot String?
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  @@index([salesOrderId])
+  @@index([skuCode])
+}
