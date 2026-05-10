@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import ordersSeed from '@/data/orders-seed.json';
 import { AppShell } from '@/components/AppShell';
@@ -65,6 +65,23 @@ function sortOrders(orders: SalesOrder[], sortKey: SortKey) {
 }
 
 export default function SalesOrdersPage() {
+  return (
+    <Suspense fallback={<SalesOrdersLoading />}>
+      <SalesOrdersContent />
+    </Suspense>
+  );
+}
+
+function SalesOrdersLoading() {
+  return (
+    <AppShell>
+      <PageHeader title="Sales Order" instruction="Loading Sales Orders..." />
+      <div className="rounded-xl border border-border bg-card p-4 text-sm text-secondaryText">Loading...</div>
+    </AppShell>
+  );
+}
+
+function SalesOrdersContent() {
   const searchParams = useSearchParams();
   const [orders, setOrders] = useState<SalesOrder[]>((ordersSeed as SalesOrder[]).map((order) => normalizeOrder(order)));
   const [query, setQuery] = useState('');
