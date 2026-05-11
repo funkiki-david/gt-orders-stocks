@@ -1,7 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import inventorySeed from '@/data/inventory-seed.json';
+import { useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { Button } from '@/components/Button';
 import { Drawer } from '@/components/Drawer';
@@ -11,6 +10,36 @@ import { SearchBar } from '@/components/SearchBar';
 import type { InventoryItem } from '@/lib/types';
 
 type InventorySortKey = 'sku-asc' | 'sku-desc' | 'description-asc' | 'description-desc' | 'qty-desc' | 'qty-asc' | 'category-asc';
+
+type ProductRecord = {
+  id: string;
+  skuCode: string;
+  productName: string;
+  category: string | null;
+  qtyCtn: number;
+  palletLocation: string | null;
+  sellingPrice: string | number | null;
+};
+
+type ProductsResponse =
+  | {
+      ok: true;
+      data: ProductRecord[];
+    }
+  | {
+      ok: false;
+      error: string;
+    };
+
+function productToInventoryItem(product: ProductRecord): InventoryItem {
+  return {
+    sku: product.skuCode,
+    name: product.productName,
+    category: product.category ?? '',
+    qty: product.qtyCtn,
+    palletLocation: product.palletLocation ?? '',
+  };
+}
 
 function sortInventory(items: InventoryItem[], sortKey: InventorySortKey) {
   const sorted = [...items];
@@ -40,17 +69,58 @@ function sortInventory(items: InventoryItem[], sortKey: InventorySortKey) {
 }
 
 export default function InventoryPage() {
-  const [items, setItems] = useState<InventoryItem[]>(
-    (inventorySeed as InventoryItem[]).map((item) => ({
-      ...item,
-      palletLocation: item.palletLocation ?? '',
-    })),
-  );
+  const [items, setItems] = useState<InventoryItem[]>([]);
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<InventorySortKey>('sku-asc');
-  const [selectedSku, setSelectedSku] = useState<string>((inventorySeed as InventoryItem[])[0]?.sku ?? '');
+  const [selectedSku, setSelectedSku] = useState<string>('');
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [draft, setDraft] = useState<InventoryItem | null>(null);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+  const [productsError, setProductsError] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadProducts() {
+      setIsLoadingProducts(true);
+      setProductsError('');
+
+      try {
+        const response = await fetch('/api/products');
+        const result = (await response.json()) as ProductsResponse;
+
+        if (!response.ok || !result.ok) {
+          throw new Error(result.ok ? 'Failed to load products' : result.error);
+        }
+
+        const nextItems = result.data.map((product) => productToInventoryItem(product));
+
+        if (!isMounted) return;
+
+        setItems(nextItems);
+        setSelectedSku((current) => {
+          if (current && nextItems.some((item) => item.sku === current)) {
+            return current;
+          }
+
+          return nextItems[0]?.sku ?? '';
+        });
+      } catch (error) {
+        if (!isMounted) return;
+        setProductsError(error instanceof Error ? error.message : 'Failed to load products');
+      } finally {
+        if (isMounted) {
+          setIsLoadingProducts(false);
+        }
+      }
+    }
+
+    loadProducts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const filteredItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -135,8 +205,20 @@ export default function InventoryPage() {
       <PageHeader title="Inventory" instruction="Step 1: select a SKU from the left. Step 2: review or edit SKU details on the right." />
 
       <div className="mb-3 rounded-xl border border-border bg-card p-2.5 text-xs text-secondaryText">
-        Local seed data from La Mirada Warehouse SKU summary. Pallet Location is editable and will be stored as master SKU data in a later database version.
+        Product records load from PostgreSQL. Add and edit actions remain local-only until the next backend integration step.
       </div>
+
+      {isLoadingProducts ? (
+        <div className="mb-3 rounded-xl border border-border bg-card p-3 text-sm text-secondaryText">
+          Loading products from database...
+        </div>
+      ) : null}
+
+      {productsError ? (
+        <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {productsError}
+        </div>
+      ) : null}
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2">
         <div className="flex flex-wrap gap-4 text-[13px] text-primaryText">
@@ -204,6 +286,13 @@ export default function InventoryPage() {
                     </tr>
                   );
                 })}
+                {!isLoadingProducts && !productsError && filteredItems.length === 0 ? (
+                  <tr>
+                    <td className="border-b border-border px-2 py-4 text-center text-secondaryText" colSpan={3}>
+                      No product records found.
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>
