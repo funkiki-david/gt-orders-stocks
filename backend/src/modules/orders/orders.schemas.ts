@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const salesOrderLineSchema = z.object({
   skuId: z.string().uuid(),
+  productDescription: z.string().max(500).optional(),
   quantityOrdered: z.coerce.number().int().min(1),
   unitPrice: z.coerce.number().min(0),
 });
@@ -20,15 +21,21 @@ export const listOrdersQuerySchema = z.object({
 });
 
 export const createOrderSchema = z.object({
+  soNumber: z.string().trim().min(1).max(80).optional(),
   customerId: z.string().uuid(),
   orderDate: z.string().datetime().optional(),
+  subtotalAmount: z.coerce.number().min(0).optional(),
+  shippingCharge: z.coerce.number().min(0).optional(),
   notes: z.string().max(2000).optional(),
   lines: z.array(salesOrderLineSchema).min(1),
 });
 
 export const updateOrderSchema = z.object({
+  soNumber: z.string().trim().min(1).max(80).optional(),
   customerId: z.string().uuid().optional(),
   orderDate: z.string().datetime().optional(),
+  subtotalAmount: z.coerce.number().min(0).optional(),
+  shippingCharge: z.coerce.number().min(0).optional(),
   notes: z.string().max(2000).optional(),
   lines: z.array(salesOrderLineSchema).min(1).optional(),
 });

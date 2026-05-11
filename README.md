@@ -32,6 +32,18 @@ Monorepo scaffold for the `GT Orders & Stocks` MVP.
 - Database schema exists in `prisma/schema.prisma`
 - SQL bootstrap exists in `prisma/init.sql`
 
+## Handoff / Deployment Notes
+
+- iMac takeover and public Browser-use handoff: `docs/iMac-takeover-public-browser-use-handoff.md`
+- Railway public test deployment: `docs/railway-test-deployment.md`
+
+## Railway Deployment
+
+- Set `DATABASE_URL`, `JWT_SECRET`, and allowed frontend origins in Railway Variables.
+- Railway can install from the repo root, run `npm run build`, and start the backend with `npm start`.
+- Prisma Client generation runs during `postinstall`; the app reads the database only through `DATABASE_URL`.
+- After deployment, verify `/api/health`, `/api/inventory/skus`, `/api/customers`, and `/api/sales/orders`.
+
 ## Prisma Note
 
 Prisma client generation works in this environment.

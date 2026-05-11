@@ -85,6 +85,8 @@ model SalesOrder {
   customer     Customer               @relation(fields: [customerId], references: [id])
   orderDate    DateTime               @default(now())
   status       SOStatus               @default(DRAFT)
+  subtotalAmount Decimal               @default(0) @db.Decimal(12, 2)
+  shippingCharge Decimal               @default(0) @db.Decimal(12, 2)
   totalAmount  Decimal                @db.Decimal(12, 2) @default(0)
   notes        String?
   createdBy    String
@@ -115,6 +117,7 @@ model SalesOrderLineItem {
   so              SalesOrder @relation(fields: [soId], references: [id], onDelete: Cascade)
   skuId           String
   sku             SKU        @relation(fields: [skuId], references: [id])
+  productDescription String?
   quantityOrdered Int
   unitPrice       Decimal    @db.Decimal(10, 2)
   lineTotal       Decimal    @db.Decimal(12, 2)

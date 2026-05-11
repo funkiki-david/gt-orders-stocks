@@ -15,7 +15,7 @@ type LoginResponse = {
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("admin@gt.local");
+  const [email, setEmail] = useState("ADMIN");
   const [password, setPassword] = useState("admin123");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -52,12 +52,16 @@ export function LoginPage() {
         </p>
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
           <label className="block space-y-1">
-            <span className="text-sm font-medium">Email</span>
-            <input
+            <span className="text-sm font-medium">Role</span>
+            <select
               className="w-full rounded-md border border-neutral-300 px-3 py-2"
               onChange={(event) => setEmail(event.target.value)}
               value={email}
-            />
+            >
+              <option value="ADMIN">ADMIN</option>
+              <option value="MANAGER">MANAGER</option>
+              <option value="WAREHOUSE">WAREHOUSE</option>
+            </select>
           </label>
           <label className="block space-y-1">
             <span className="text-sm font-medium">Password</span>

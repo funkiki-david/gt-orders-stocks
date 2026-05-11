@@ -139,6 +139,7 @@ export function InventoryPage({ mode = "products" }: InventoryPageProps) {
   const movementPageSize = 12;
   const [isCreateProductOpen, setIsCreateProductOpen] = useState(false);
   const [isProductSearchOpen, setIsProductSearchOpen] = useState(false);
+  const [editingSkuId, setEditingSkuId] = useState("");
   const [skuForm, setSkuForm] = useState<SkuFormState>({
     skuCode: "",
     productName: "",
@@ -423,6 +424,33 @@ export function InventoryPage({ mode = "products" }: InventoryPageProps) {
     },
   });
 
+  const updateSkuMutation = useMutation({
+    mutationFn: async () =>
+      apiFetch<Sku>(`/inventory/skus/${editingSkuId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          ...skuForm,
+          unitCost: Number(skuForm.unitCost),
+          sellingPrice: Number(skuForm.sellingPrice),
+          reorderLevel: Number(skuForm.reorderLevel),
+          reorderQuantity: Number(skuForm.reorderQuantity),
+        }),
+      }),
+    onSuccess: async (sku) => {
+      setError("");
+      setIsCreateProductOpen(false);
+      setEditingSkuId("");
+      setSelectedSkuId(sku.id);
+      await queryClient.invalidateQueries({ queryKey: ["skus"] });
+      await queryClient.invalidateQueries({ queryKey: ["selected-sku"] });
+      await queryClient.invalidateQueries({ queryKey: ["inventory-dashboard"] });
+      await queryClient.invalidateQueries({ queryKey: ["low-stock"] });
+    },
+    onError: (mutationError) => {
+      setError(mutationError instanceof Error ? mutationError.message : "Could not update SKU");
+    },
+  });
+
   const createMovementMutation = useMutation({
     mutationFn: async () =>
       apiFetch<{ movement: InventoryMovement; sku: Sku }>("/inventory/movements", {
@@ -544,7 +572,42 @@ export function InventoryPage({ mode = "products" }: InventoryPageProps) {
 
   function handleCreateSku(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (editingSkuId) {
+      updateSkuMutation.mutate();
+      return;
+    }
+
     createSkuMutation.mutate();
+  }
+
+  function openCreateSkuModal() {
+    setEditingSkuId("");
+    setSkuForm({
+      skuCode: "",
+      productName: "",
+      category: "",
+      unitCost: "0.00",
+      sellingPrice: "0.00",
+      reorderLevel: "100",
+      reorderQuantity: "500",
+      warehouseLocation: "",
+    });
+    setIsCreateProductOpen(true);
+  }
+
+  function openEditSkuModal(sku: Sku) {
+    setEditingSkuId(sku.id);
+    setSkuForm({
+      skuCode: sku.skuCode,
+      productName: sku.productName,
+      category: sku.category,
+      unitCost: sku.unitCost,
+      sellingPrice: sku.sellingPrice,
+      reorderLevel: String(sku.reorderLevel),
+      reorderQuantity: String(sku.reorderQuantity),
+      warehouseLocation: sku.warehouseLocation ?? "",
+    });
+    setIsCreateProductOpen(true);
   }
 
   function handleCreateMovement(event: FormEvent<HTMLFormElement>) {
@@ -816,6 +879,8 @@ export function InventoryPage({ mode = "products" }: InventoryPageProps) {
               setSelectedSkuId={setSelectedSkuId}
               skuSearch={skuSearch}
               skus={skusQuery.data?.items ?? []}
+              isError={skusQuery.isError}
+              isLoading={skusQuery.isLoading || skusQuery.isFetching}
               totalPages={totalSkuPages}
               totalSkus={skusQuery.data?.pagination.total ?? 0}
             />
@@ -885,10 +950,19 @@ export function InventoryPage({ mode = "products" }: InventoryPageProps) {
                   {canEditProducts ? (
                     <button
                       className="rounded-full border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
-                      onClick={() => setIsCreateProductOpen(true)}
+                      onClick={openCreateSkuModal}
                       type="button"
                     >
                       Add SKU
+                    </button>
+                  ) : null}
+                  {canEditProducts ? (
+                    <button
+                      className="rounded-full border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
+                      onClick={() => openEditSkuModal(selectedSku)}
+                      type="button"
+                    >
+                      Edit SKU
                     </button>
                   ) : null}
                 </div>
@@ -1616,15 +1690,22 @@ export function InventoryPage({ mode = "products" }: InventoryPageProps) {
           <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-neutral-200 bg-white p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Add SKU</p>
-                <h3 className="mt-2 text-2xl font-semibold">New SKU</h3>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                  {editingSkuId ? "Edit SKU" : "Add SKU"}
+                </p>
+                <h3 className="mt-2 text-2xl font-semibold">{editingSkuId ? "Update SKU" : "New SKU"}</h3>
                 <p className="mt-2 text-sm text-neutral-500">
-                  Add a stock item before you start moving or reserving it.
+                  {editingSkuId
+                    ? "Save product detail changes to the database."
+                    : "Add a stock item before you start moving or reserving it."}
                 </p>
               </div>
               <button
                 className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-                onClick={() => setIsCreateProductOpen(false)}
+                onClick={() => {
+                  setIsCreateProductOpen(false);
+                  setEditingSkuId("");
+                }}
                 type="button"
               >
                 Close
@@ -1645,17 +1726,26 @@ export function InventoryPage({ mode = "products" }: InventoryPageProps) {
               <div className="flex items-center justify-end gap-3 pt-2">
                 <button
                   className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-                  onClick={() => setIsCreateProductOpen(false)}
+                  onClick={() => {
+                    setIsCreateProductOpen(false);
+                    setEditingSkuId("");
+                  }}
                   type="button"
                 >
                   Cancel
                 </button>
                 <button
                   className="rounded-md bg-brand-primary px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
-                  disabled={createSkuMutation.isPending}
+                  disabled={createSkuMutation.isPending || updateSkuMutation.isPending}
                   type="submit"
                 >
-                  {createSkuMutation.isPending ? "Creating..." : "Add SKU"}
+                  {editingSkuId
+                    ? updateSkuMutation.isPending
+                      ? "Saving..."
+                      : "Save SKU"
+                    : createSkuMutation.isPending
+                      ? "Creating..."
+                      : "Add SKU"}
                 </button>
               </div>
             </form>
@@ -1817,6 +1907,8 @@ export function InventoryPage({ mode = "products" }: InventoryPageProps) {
                 totalPages={totalSkuPages}
                 totalSkus={skusQuery.data?.pagination.total ?? 0}
                 onSelectSku={() => setIsProductSearchOpen(false)}
+                isError={skusQuery.isError}
+                isLoading={skusQuery.isLoading || skusQuery.isFetching}
               />
             </div>
           </div>
@@ -1876,6 +1968,8 @@ function ProductsQueueCard({
   setSelectedSkuId,
   skuSearch,
   skus,
+  isError,
+  isLoading,
   totalPages,
   totalSkus,
   onSelectSku,
@@ -1888,6 +1982,8 @@ function ProductsQueueCard({
   setSelectedSkuId: (value: string) => void;
   skuSearch: string;
   skus: Sku[];
+  isError: boolean;
+  isLoading: boolean;
   totalPages: number;
   totalSkus: number;
   onSelectSku?: () => void;
@@ -1917,6 +2013,10 @@ function ProductsQueueCard({
       </div>
       {hasSearchQueue ? (
         <div className="divide-y divide-neutral-200 border-t border-neutral-200">
+          {isLoading ? <div className="px-5 py-6 text-sm text-neutral-500">Loading SKUs...</div> : null}
+          {isError ? (
+            <div className="px-5 py-6 text-sm text-red-700">Could not load SKU records from the database.</div>
+          ) : null}
           {skus.map((sku) => (
           <div
             key={sku.id}
@@ -1974,7 +2074,7 @@ function ProductsQueueCard({
             </div>
           </div>
           ))}
-          {!skus.length ? <div className="px-5 py-6 text-sm text-neutral-500">No SKUs match the current search.</div> : null}
+          {!isLoading && !isError && !skus.length ? <div className="px-5 py-6 text-sm text-neutral-500">No SKUs match the current search.</div> : null}
         </div>
       ) : null}
       {hasSearchQueue && totalPages > 1 ? (

@@ -12,6 +12,22 @@ type UserTokenPayload = {
   role: AppRole;
 };
 
+const roleLoginEmails: Record<AppRole, string> = {
+  ADMIN: "admin@gt.usa",
+  MANAGER: "manager@gt.local",
+  WAREHOUSE: "warehouse@gt.local",
+};
+
+function normalizeLoginIdentifier(identifier: string) {
+  const normalized = identifier.trim().toUpperCase();
+
+  if (normalized in roleLoginEmails) {
+    return roleLoginEmails[normalized as AppRole];
+  }
+
+  return identifier.trim().toLowerCase();
+}
+
 export const authService = {
   issueToken(payload: UserTokenPayload) {
     return jwt.sign(payload, env.JWT_SECRET, { expiresIn: "1d" });
@@ -48,6 +64,7 @@ export const authService = {
   },
 
   async login(input: { email: string; password: string }) {
+    const loginEmail = normalizeLoginIdentifier(input.email);
     const result = await db.query(
       `
         select "id", "email", "password", "name", "role", "active"
@@ -55,7 +72,7 @@ export const authService = {
         where email = $1
         limit 1
       `,
-      [input.email.toLowerCase()],
+      [loginEmail],
     );
     const user = result.rows[0];
 

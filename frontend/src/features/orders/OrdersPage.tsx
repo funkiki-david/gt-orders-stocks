@@ -32,12 +32,16 @@ type PagedResponse<T> = {
 
 type DraftOrderLine = {
   skuId: string;
+  productDescription: string;
   quantityOrdered: string;
   unitPrice: string;
 };
 
 type OrderFormState = {
+  soNumber: string;
   customerId: string;
+  subtotalAmount: string;
+  shippingCharge: string;
   notes: string;
   lines: DraftOrderLine[];
 };
@@ -55,17 +59,34 @@ type OrdersPageProps = {
 function createEmptyLine(defaultSku?: Sku): DraftOrderLine {
   return {
     skuId: defaultSku?.id ?? "",
+    productDescription: defaultSku?.productName ?? "",
     quantityOrdered: "1",
     unitPrice: defaultSku?.sellingPrice ?? "0.00",
   };
 }
 
+function calculateDraftLineSubtotal(lines: DraftOrderLine[]) {
+  return lines.reduce((sum, line) => {
+    const quantity = Number(line.quantityOrdered) || 0;
+    const unitPrice = Number(line.unitPrice) || 0;
+    return sum + quantity * unitPrice;
+  }, 0);
+}
+
+function calculateDraftTotal(form: OrderFormState) {
+  return Number(form.subtotalAmount || calculateDraftLineSubtotal(form.lines)) + (Number(form.shippingCharge) || 0);
+}
+
 function toDraftEditorState(order: SalesOrderDetail): OrderFormState {
   return {
+    soNumber: order.soNumber,
     customerId: order.customerId,
+    subtotalAmount: String(order.subtotalAmount ?? order.totalAmount),
+    shippingCharge: String(order.shippingCharge ?? "0.00"),
     notes: order.notes ?? "",
     lines: order.lines.map((line) => ({
       skuId: line.skuId,
+      productDescription: line.productDescription ?? line.productName ?? "",
       quantityOrdered: String(line.quantityOrdered),
       unitPrice: String(line.unitPrice),
     })),
@@ -159,7 +180,10 @@ export function OrdersPage({ mode = "workspace" }: OrdersPageProps) {
   const [draftEditor, setDraftEditor] = useState<OrderFormState | null>(null);
   const [fulfillmentForm, setFulfillmentForm] = useState<Record<string, FulfillmentLineState>>({});
   const [form, setForm] = useState<OrderFormState>({
+    soNumber: "",
     customerId: "",
+    subtotalAmount: "",
+    shippingCharge: "0.00",
     notes: "",
     lines: [createEmptyLine()],
   });
@@ -350,6 +374,7 @@ export function OrdersPage({ mode = "workspace" }: OrdersPageProps) {
           : {
               ...line,
               skuId: firstSku?.id ?? "",
+              productDescription: line.productDescription || firstSku?.productName || "",
               unitPrice: line.unitPrice !== "0.00" ? line.unitPrice : firstSku?.sellingPrice ?? line.unitPrice,
             },
       ),
@@ -366,9 +391,13 @@ export function OrdersPage({ mode = "workspace" }: OrdersPageProps) {
         method: "POST",
         body: JSON.stringify({
           customerId: form.customerId,
+          soNumber: form.soNumber || undefined,
+          subtotalAmount: Number(form.subtotalAmount || calculateDraftLineSubtotal(form.lines)),
+          shippingCharge: Number(form.shippingCharge) || 0,
           notes: form.notes,
           lines: form.lines.map((line) => ({
             skuId: line.skuId,
+            productDescription: line.productDescription || undefined,
             quantityOrdered: Number(line.quantityOrdered),
             unitPrice: Number(line.unitPrice),
           })),
@@ -378,7 +407,10 @@ export function OrdersPage({ mode = "workspace" }: OrdersPageProps) {
       setSelectedOrderId(order.id);
       setError("");
       setForm({
+        soNumber: "",
         customerId: form.customerId,
+        subtotalAmount: "",
+        shippingCharge: "0.00",
         notes: "",
         lines: [createEmptyLine(skusQuery.data?.items[0])],
       });
@@ -397,9 +429,13 @@ export function OrdersPage({ mode = "workspace" }: OrdersPageProps) {
         method: "PUT",
         body: JSON.stringify({
           customerId: payload.formState.customerId,
+          soNumber: payload.formState.soNumber || undefined,
+          subtotalAmount: Number(payload.formState.subtotalAmount || calculateDraftLineSubtotal(payload.formState.lines)),
+          shippingCharge: Number(payload.formState.shippingCharge) || 0,
           notes: payload.formState.notes,
           lines: payload.formState.lines.map((line) => ({
             skuId: line.skuId,
+            productDescription: line.productDescription || undefined,
             quantityOrdered: Number(line.quantityOrdered),
             unitPrice: Number(line.unitPrice),
           })),
@@ -525,6 +561,7 @@ export function OrdersPage({ mode = "workspace" }: OrdersPageProps) {
           notes: [`Duplicated from ${order.soNumber}.`, order.notes ?? ""].filter(Boolean).join("\n"),
           lines: order.lines.map((line) => ({
             skuId: line.skuId,
+            productDescription: line.productDescription ?? line.productName ?? "",
             quantityOrdered: line.quantityOrdered,
             unitPrice: Number(line.unitPrice),
           })),
@@ -562,11 +599,8 @@ export function OrdersPage({ mode = "workspace" }: OrdersPageProps) {
   const showCustomerReturnLink =
     !isNewMode && sourceParam === "customer" && Boolean(returnCustomerId) && canAccessCustomers;
   const activeSkus = skusQuery.data?.items ?? [];
-  const orderDraftTotal = form.lines.reduce((sum, line) => {
-    const quantity = Number(line.quantityOrdered) || 0;
-    const unitPrice = Number(line.unitPrice) || 0;
-    return sum + quantity * unitPrice;
-  }, 0);
+  const orderDraftLineSubtotal = calculateDraftLineSubtotal(form.lines);
+  const orderDraftTotal = calculateDraftTotal(form);
 
   function addLine() {
     setForm((current) => ({
@@ -595,6 +629,7 @@ export function OrdersPage({ mode = "workspace" }: OrdersPageProps) {
           return {
             ...line,
             skuId: value,
+            productDescription: nextSku ? nextSku.productName : line.productDescription,
             unitPrice: nextSku ? nextSku.sellingPrice : line.unitPrice,
           };
         }
@@ -647,6 +682,7 @@ export function OrdersPage({ mode = "workspace" }: OrdersPageProps) {
                 return {
                   ...line,
                   skuId: value,
+                  productDescription: nextSku ? nextSku.productName : line.productDescription,
                   unitPrice: nextSku ? nextSku.sellingPrice : line.unitPrice,
                 };
               }
@@ -661,21 +697,20 @@ export function OrdersPage({ mode = "workspace" }: OrdersPageProps) {
     );
   }
 
-  const draftEditorTotal =
-    draftEditor?.lines.reduce((sum, line) => {
-      const quantity = Number(line.quantityOrdered) || 0;
-      const unitPrice = Number(line.unitPrice) || 0;
-      return sum + quantity * unitPrice;
-    }, 0) ?? 0;
+  const draftEditorTotal = draftEditor ? calculateDraftTotal(draftEditor) : 0;
 
   const isDraftDirty =
     selectedOrder?.status === "DRAFT" &&
     draftEditor !== null &&
     JSON.stringify({
+      soNumber: selectedOrder.soNumber,
       customerId: selectedOrder.customerId,
+      subtotalAmount: String(selectedOrder.subtotalAmount ?? selectedOrder.totalAmount),
+      shippingCharge: String(selectedOrder.shippingCharge ?? "0.00"),
       notes: selectedOrder.notes ?? "",
       lines: selectedOrder.lines.map((line) => ({
         skuId: line.skuId,
+        productDescription: line.productDescription ?? line.productName ?? "",
         quantityOrdered: String(line.quantityOrdered),
         unitPrice: String(line.unitPrice),
       })),
@@ -821,23 +856,14 @@ export function OrdersPage({ mode = "workspace" }: OrdersPageProps) {
 
   return (
     <section className="space-y-6">
+      {!isNewMode ? (
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold">{isNewMode ? "New Sales Order" : "Sales Orders"}</h2>
+          <h2 className="text-2xl font-semibold">Sales Orders</h2>
           <p className="text-sm text-neutral-500">
-            {isNewMode
-              ? "Create a multi-line draft order in a dedicated entry screen, then review and confirm it from the order queue."
-              : "Review your sales order queue, edit draft documents, confirm reservations, and monitor fulfillment progress."}
+            Review your sales order queue, edit draft documents, confirm reservations, and monitor fulfillment progress.
           </p>
         </div>
-        {isNewMode ? (
-          <Link
-            className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-            to="/sales/orders"
-          >
-            Back to Order Queue
-          </Link>
-        ) : (
           <div className="space-y-3">
             {sourceParam === "customer" && customerFilter ? (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
@@ -955,71 +981,40 @@ export function OrdersPage({ mode = "workspace" }: OrdersPageProps) {
             </label>
             </div>
           </div>
-        )}
       </div>
+      ) : null}
 
       {error ? (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       ) : null}
+      {ordersQuery.isLoading && !isNewMode ? (
+        <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
+          Loading sales orders...
+        </div>
+      ) : null}
+      {ordersQuery.isError && !isNewMode ? (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          Could not load sales orders from the database.
+        </div>
+      ) : null}
 
       {isNewMode ? (
-        <div className="grid gap-6 xl:grid-cols-[1.55fr_0.95fr]">
+        <div>
           <OrderCreationCard
             customers={customersQuery.data?.items ?? []}
+            calculatedSubtotal={orderDraftLineSubtotal}
             form={form}
             lineTotal={orderDraftTotal}
             onAddLine={addLine}
             onChangeLine={updateLine}
             onChangeNotes={(notes) => setForm((current) => ({ ...current, notes }))}
             onChangeCustomer={(customerId) => setForm((current) => ({ ...current, customerId }))}
+            onChangeField={(field, value) => setForm((current) => ({ ...current, [field]: value }))}
             onRemoveLine={removeLine}
             onSubmit={handleCreateOrder}
             pending={createOrderMutation.isPending}
             skus={activeSkus}
           />
-          <div className="space-y-6">
-            <div className="rounded-xl border border-neutral-200 bg-white p-5">
-              <h3 className="text-lg font-semibold">Order Workflow</h3>
-              <div className="mt-4 space-y-4 text-sm text-neutral-600">
-                <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
-                  <p className="font-medium text-neutral-800">Draft first</p>
-                  <p className="mt-1">Keep data entry focused here, then return to the main queue when you need review and confirmation actions.</p>
-                </div>
-                <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
-                  <p className="font-medium text-neutral-800">Queue second</p>
-                  <p className="mt-1">The Sales Orders queue works like a command center for filtering, editing, confirming, and monitoring shipment progress.</p>
-                </div>
-                <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
-                  <p className="font-medium text-neutral-800">Ship from Inventory</p>
-                  <p className="mt-1">Linked outbound movements continue the same order lifecycle without forcing everything into one screen.</p>
-                </div>
-              </div>
-            </div>
-            <div className="rounded-xl border border-neutral-200 bg-white p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold">Recent Order Queue</h3>
-                  <p className="text-sm text-neutral-500">A quick snapshot of what is already in the system.</p>
-                </div>
-                <Link className="text-sm font-medium text-green-700 hover:text-green-800" to="/sales/orders">
-                  Open Queue
-                </Link>
-              </div>
-              <div className="mt-4 space-y-3">
-                {ordersQuery.data?.items.slice(0, 5).map((order) => (
-                  <div key={order.id} className="rounded-lg border border-neutral-200 px-4 py-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-medium">{order.soNumber}</p>
-                        <p className="text-sm text-neutral-500">{order.customerCompanyName}</p>
-                      </div>
-                      <StatusBadge>{order.status}</StatusBadge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
         </div>
       ) : (
         <div className="grid gap-6 xl:grid-cols-[1.05fr_1.35fr]">
@@ -1496,6 +1491,9 @@ export function OrdersPage({ mode = "workspace" }: OrdersPageProps) {
                       onChangeCustomer={(customerId) =>
                         setDraftEditor((current) => (current ? { ...current, customerId } : current))
                       }
+                      onChangeField={(field, value) =>
+                        setDraftEditor((current) => (current ? { ...current, [field]: value } : current))
+                      }
                       onChangeLine={updateDraftEditorLine}
                       onChangeNotes={(notes) =>
                         setDraftEditor((current) => (current ? { ...current, notes } : current))
@@ -1597,10 +1595,12 @@ export function OrdersPage({ mode = "workspace" }: OrdersPageProps) {
 
 function OrderCreationCard({
   customers,
+  calculatedSubtotal,
   form,
   lineTotal,
   onAddLine,
   onChangeCustomer,
+  onChangeField,
   onChangeLine,
   onChangeNotes,
   onRemoveLine,
@@ -1609,10 +1609,12 @@ function OrderCreationCard({
   skus,
 }: {
   customers: Customer[];
+  calculatedSubtotal: number;
   form: OrderFormState;
   lineTotal: number;
   onAddLine: () => void;
   onChangeCustomer: (customerId: string) => void;
+  onChangeField: (field: "soNumber" | "subtotalAmount" | "shippingCharge", value: string) => void;
   onChangeLine: (index: number, field: keyof DraftOrderLine, value: string) => void;
   onChangeNotes: (notes: string) => void;
   onRemoveLine: (index: number) => void;
@@ -1621,14 +1623,28 @@ function OrderCreationCard({
   skus: Sku[];
 }) {
   return (
-    <form className="space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-5" onSubmit={onSubmit}>
-      <div className="flex items-center justify-between">
+    <form className="space-y-6 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm" onSubmit={onSubmit}>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 pb-4">
         <div>
-          <h3 className="text-lg font-semibold">Draft Builder</h3>
-          <p className="text-sm text-neutral-500">Create a multi-line sales order draft before reservation and fulfillment actions.</p>
+          <h2 className="text-xl font-semibold">Sales Order Form</h2>
         </div>
+        <Link
+          className="inline-flex items-center justify-center rounded-full border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
+          to="/sales/orders"
+        >
+          Existing Orders
+        </Link>
       </div>
-      <div className="grid gap-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <label className="space-y-1">
+          <span className="text-sm font-medium">Sales Order Number</span>
+          <input
+            className="w-full rounded-md border border-neutral-300 px-3 py-2"
+            onChange={(event) => onChangeField("soNumber", event.target.value)}
+            placeholder="Enter SO number"
+            value={form.soNumber}
+          />
+        </label>
         <label className="space-y-1">
           <span className="text-sm font-medium">Customer</span>
           <select
@@ -1644,21 +1660,15 @@ function OrderCreationCard({
             ))}
           </select>
         </label>
-        <div className="rounded-lg border border-neutral-200 bg-white px-4 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Draft Total</p>
-          <p className="mt-2 text-2xl font-semibold">${lineTotal.toFixed(2)}</p>
-          <p className="mt-1 text-sm text-neutral-500">{form.lines.length} line(s) in this draft</p>
-        </div>
       </div>
 
-      <div className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
-        <div className="flex items-center justify-between">
+      <div className="space-y-3">
+        <div className="flex items-center justify-between border-b border-neutral-200 pb-3">
           <div>
             <h4 className="text-base font-semibold">Order Lines</h4>
-            <p className="text-sm text-neutral-500">Add one or more SKUs to the same draft order.</p>
           </div>
           <button
-            className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+            className="rounded-full border border-neutral-300 px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
             onClick={onAddLine}
             type="button"
           >
@@ -1689,12 +1699,53 @@ function OrderCreationCard({
           value={form.notes}
         />
       </label>
+      <div className="grid gap-4 border-t border-neutral-200 pt-4 md:grid-cols-2 xl:grid-cols-4">
+        <label className="space-y-1">
+          <span className="text-sm font-medium">Calculated Line Subtotal</span>
+          <input
+            className="w-full rounded-md border border-neutral-200 bg-neutral-100 px-3 py-2 text-neutral-600"
+            readOnly
+            value={`$${calculatedSubtotal.toFixed(2)}`}
+          />
+        </label>
+        <label className="space-y-1">
+          <span className="text-sm font-medium">Subtotal</span>
+          <input
+            className="w-full rounded-md border border-neutral-300 px-3 py-2"
+            min="0"
+            onChange={(event) => onChangeField("subtotalAmount", event.target.value)}
+            placeholder={calculatedSubtotal.toFixed(2)}
+            step="0.01"
+            type="number"
+            value={form.subtotalAmount}
+          />
+        </label>
+        <label className="space-y-1">
+          <span className="text-sm font-medium">Shipping Charge</span>
+          <input
+            className="w-full rounded-md border border-neutral-300 px-3 py-2"
+            min="0"
+            onChange={(event) => onChangeField("shippingCharge", event.target.value)}
+            step="0.01"
+            type="number"
+            value={form.shippingCharge}
+          />
+        </label>
+        <label className="space-y-1">
+          <span className="text-sm font-medium">Order Total</span>
+          <input
+            className="w-full rounded-md border border-neutral-200 bg-neutral-100 px-3 py-2 font-semibold text-neutral-900"
+            readOnly
+            value={`$${lineTotal.toFixed(2)}`}
+          />
+        </label>
+      </div>
       <button
         className="rounded-md bg-brand-primary px-4 py-2 font-medium text-white hover:bg-green-700 disabled:opacity-60"
         disabled={pending}
         type="submit"
       >
-        {pending ? "Creating..." : "Create Draft Order"}
+        {pending ? "Creating..." : "Create New Sales Order"}
       </button>
     </form>
   );
@@ -1720,7 +1771,7 @@ function EditableLineCard({
 
   return (
     <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.8fr)_130px_150px_auto]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.5fr)]">
         <label className="space-y-1">
           <span className="text-sm font-medium">SKU</span>
           <select
@@ -1736,6 +1787,16 @@ function EditableLineCard({
             ))}
           </select>
         </label>
+        <label className="space-y-1">
+          <span className="text-sm font-medium">Product Description</span>
+          <input
+            className="w-full rounded-md border border-neutral-300 px-3 py-2"
+            onChange={(event) => onChange(rowIndex, "productDescription", event.target.value)}
+            value={line.productDescription}
+          />
+        </label>
+      </div>
+      <div className="mt-4 grid gap-4 lg:grid-cols-[130px_150px_minmax(150px,1fr)_auto]">
         <label className="space-y-1">
           <span className="text-sm font-medium">Quantity</span>
           <input
@@ -1763,7 +1824,7 @@ function EditableLineCard({
             <p className="mt-1 text-lg font-semibold">${lineTotal}</p>
           </div>
           <button
-            className="rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-full border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={disableRemove}
             onClick={() => onRemove(rowIndex)}
             type="button"
@@ -1786,6 +1847,7 @@ function DraftEditorSection({
   customers,
   draftEditor,
   onChangeCustomer,
+  onChangeField,
   onChangeLine,
   onChangeNotes,
   onRemoveLine,
@@ -1794,6 +1856,7 @@ function DraftEditorSection({
   customers: Customer[];
   draftEditor: OrderFormState;
   onChangeCustomer: (customerId: string) => void;
+  onChangeField: (field: "soNumber" | "subtotalAmount" | "shippingCharge", value: string) => void;
   onChangeLine: (index: number, field: keyof DraftOrderLine, value: string) => void;
   onChangeNotes: (notes: string) => void;
   onRemoveLine: (index: number) => void;
@@ -1801,7 +1864,15 @@ function DraftEditorSection({
 }) {
   return (
     <div className="mt-3 space-y-4">
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <label className="space-y-1">
+          <span className="text-sm font-medium">Sales Order Number</span>
+          <input
+            className="w-full rounded-md border border-neutral-300 px-3 py-2"
+            onChange={(event) => onChangeField("soNumber", event.target.value)}
+            value={draftEditor.soNumber}
+          />
+        </label>
         <label className="space-y-1">
           <span className="text-sm font-medium">Customer</span>
           <select
@@ -1817,6 +1888,31 @@ function DraftEditorSection({
             ))}
           </select>
         </label>
+        <label className="space-y-1">
+          <span className="text-sm font-medium">Subtotal</span>
+          <input
+            className="w-full rounded-md border border-neutral-300 px-3 py-2"
+            min="0"
+            onChange={(event) => onChangeField("subtotalAmount", event.target.value)}
+            step="0.01"
+            type="number"
+            value={draftEditor.subtotalAmount}
+          />
+        </label>
+        <label className="space-y-1">
+          <span className="text-sm font-medium">Shipping Charge</span>
+          <input
+            className="w-full rounded-md border border-neutral-300 px-3 py-2"
+            min="0"
+            onChange={(event) => onChangeField("shippingCharge", event.target.value)}
+            step="0.01"
+            type="number"
+            value={draftEditor.shippingCharge}
+          />
+        </label>
+      </div>
+
+      <div className="grid gap-4">
         <label className="space-y-1">
           <span className="text-sm font-medium">Notes</span>
           <textarea
@@ -1865,7 +1961,7 @@ function ReadonlyLinesTable({
             <tr key={line.id}>
               <td className="px-4 py-3">
                 <p className="font-medium">{line.skuCode}</p>
-                <p className="text-neutral-500">{line.productName}</p>
+                <p className="text-neutral-500">{line.productDescription || line.productName}</p>
               </td>
               <td className="px-4 py-3">{line.quantityOrdered}</td>
               <td className="px-4 py-3">${line.unitPrice}</td>

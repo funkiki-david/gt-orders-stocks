@@ -88,6 +88,7 @@ export type OrderLine = {
   skuId: string;
   skuCode?: string;
   productName?: string;
+  productDescription?: string | null;
   quantityOrdered: number;
   unitPrice: string;
   lineTotal: string;
@@ -115,6 +116,8 @@ export type SalesOrderSummary = {
   customerPaymentTerms?: string;
   orderDate: string;
   status: "DRAFT" | "CONFIRMED" | "SHIPPED" | "COMPLETED" | "CANCELLED";
+  subtotalAmount?: string;
+  shippingCharge?: string;
   totalAmount: string;
   notes?: string;
   createdBy: string;

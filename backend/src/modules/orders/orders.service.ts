@@ -9,6 +9,7 @@ type SortDirection = "asc" | "desc";
 
 type OrderLineInput = {
   skuId: string;
+  productDescription?: string;
   quantityOrdered: number;
   unitPrice: number;
 };
@@ -19,6 +20,8 @@ type SalesOrderRow = {
   customerId: string;
   orderDate: Date;
   status: OrderStatus;
+  subtotalAmount?: string | number;
+  shippingCharge?: string | number;
   totalAmount: string | number;
   notes: string | null;
   createdBy: string;
@@ -33,6 +36,7 @@ type OrderLineRow = {
   id: string;
   soId: string;
   skuId: string;
+  productDescription: string | null;
   quantityOrdered: number;
   unitPrice: string | number;
   lineTotal: string | number;
@@ -93,6 +97,8 @@ function toOrderSummary(row: SalesOrderRow) {
     customerPaymentTerms: row.customerPaymentTerms ?? undefined,
     orderDate: row.orderDate,
     status: row.status,
+    subtotalAmount: String(row.subtotalAmount ?? row.totalAmount),
+    shippingCharge: String(row.shippingCharge ?? 0),
     totalAmount: String(row.totalAmount),
     notes: row.notes ?? undefined,
     createdBy: row.createdBy,
@@ -194,8 +200,12 @@ async function ensureDraftOrderForLineEdit(client: PoolClient, soId: string) {
   return order;
 }
 
-function calculateTotal(lines: OrderLineInput[]) {
+function calculateLineSubtotal(lines: OrderLineInput[]) {
   return lines.reduce((sum, line) => sum + line.quantityOrdered * line.unitPrice, 0);
+}
+
+function calculateTotal(lines: OrderLineInput[], subtotalAmount?: number, shippingCharge?: number) {
+  return (subtotalAmount ?? calculateLineSubtotal(lines)) + (shippingCharge ?? 0);
 }
 
 async function createOrderLines(client: PoolClient, soId: string, lines: OrderLineInput[]) {
@@ -203,14 +213,15 @@ async function createOrderLines(client: PoolClient, soId: string, lines: OrderLi
     await client.query(
       `
         insert into so_line_items (
-          "id", "soId", "skuId", "quantityOrdered", "unitPrice", "lineTotal", "updatedAt"
+          "id", "soId", "skuId", "productDescription", "quantityOrdered", "unitPrice", "lineTotal", "updatedAt"
         )
-        values ($1, $2, $3, $4, $5, $6, now())
+        values ($1, $2, $3, $4, $5, $6, $7, now())
       `,
       [
         randomUUID(),
         soId,
         line.skuId,
+        line.productDescription ?? null,
         line.quantityOrdered,
         line.unitPrice,
         line.quantityOrdered * line.unitPrice,
@@ -428,8 +439,11 @@ export const ordersService = {
 
   async create(
     input: {
+      soNumber?: string;
       customerId: string;
       orderDate?: string;
+      subtotalAmount?: number;
+      shippingCharge?: number;
       notes?: string;
       lines: OrderLineInput[];
     },
@@ -444,22 +458,26 @@ export const ordersService = {
       await validateDraftLines(client, input.lines);
 
       const soId = randomUUID();
-      const soNumber = await nextSoNumber(client);
-      const totalAmount = calculateTotal(input.lines);
+      const soNumber = input.soNumber?.trim() || (await nextSoNumber(client));
+      const subtotalAmount = input.subtotalAmount ?? calculateLineSubtotal(input.lines);
+      const shippingCharge = input.shippingCharge ?? 0;
+      const totalAmount = calculateTotal(input.lines, subtotalAmount, shippingCharge);
 
       await client.query(
         `
           insert into sales_orders (
             "id", "soNumber", "customerId", "orderDate", "status",
-            "totalAmount", "notes", "createdBy", "updatedAt"
+            "subtotalAmount", "shippingCharge", "totalAmount", "notes", "createdBy", "updatedAt"
           )
-          values ($1, $2, $3, $4, 'DRAFT', $5, $6, $7, now())
+          values ($1, $2, $3, $4, 'DRAFT', $5, $6, $7, $8, $9, now())
         `,
         [
           soId,
           soNumber,
           input.customerId,
           input.orderDate ? new Date(input.orderDate) : new Date(),
+          subtotalAmount,
+          shippingCharge,
           totalAmount,
           input.notes ?? null,
           userId,
@@ -477,6 +495,8 @@ export const ordersService = {
         changes: {
           soNumber,
           status: "DRAFT",
+          subtotalAmount,
+          shippingCharge,
           totalAmount,
           lines: input.lines.length,
         },
@@ -496,8 +516,11 @@ export const ordersService = {
   async update(
     id: string,
     input: {
+      soNumber?: string;
       customerId?: string;
       orderDate?: string;
+      subtotalAmount?: number;
+      shippingCharge?: number;
       notes?: string;
       lines?: OrderLineInput[];
     },
@@ -522,31 +545,40 @@ export const ordersService = {
       const nextCustomerId = input.customerId ?? order.customerId;
       await ensureCustomerExists(client, nextCustomerId);
 
-      let totalAmount = Number(order.totalAmount);
+      let subtotalAmount = input.subtotalAmount ?? Number(order.subtotalAmount ?? order.totalAmount);
+      const shippingCharge = input.shippingCharge ?? Number(order.shippingCharge ?? 0);
       if (input.lines) {
         await validateDraftLines(client, input.lines);
-        totalAmount = calculateTotal(input.lines);
+        subtotalAmount = input.subtotalAmount ?? calculateLineSubtotal(input.lines);
 
         await client.query(`delete from so_line_items where "soId" = $1`, [id]);
         await createOrderLines(client, id, input.lines);
       }
+      const totalAmount = calculateTotal(input.lines ?? [], subtotalAmount, shippingCharge);
+      const nextSoNumber = input.soNumber?.trim() || order.soNumber;
 
       await client.query(
         `
           update sales_orders
           set
-            "customerId" = $2,
-            "orderDate" = $3,
-            "notes" = $4,
-            "totalAmount" = $5,
+            "soNumber" = $2,
+            "customerId" = $3,
+            "orderDate" = $4,
+            "notes" = $5,
+            "subtotalAmount" = $6,
+            "shippingCharge" = $7,
+            "totalAmount" = $8,
             "updatedAt" = now()
           where id = $1
         `,
         [
           id,
+          nextSoNumber,
           nextCustomerId,
           input.orderDate ? new Date(input.orderDate) : order.orderDate,
           input.notes ?? order.notes,
+          subtotalAmount,
+          shippingCharge,
           totalAmount,
         ],
       );
@@ -558,6 +590,9 @@ export const ordersService = {
         recordId: id,
         soId: id,
         changes: {
+          soNumber: nextSoNumber,
+          subtotalAmount,
+          shippingCharge,
           totalAmount,
           lineCount: input.lines?.length,
         },

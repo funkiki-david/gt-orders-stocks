@@ -2,7 +2,7 @@ import { z } from "zod";
 import { APP_ROLES } from "../../shared/roles.js";
 
 export const loginSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().min(1),
   password: z.string().min(8),
 });
 

@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { apiFetch } from "@/lib/api";
-import type { Customer, SalesOrderSummary } from "@/lib/types";
+import type { Customer, CustomerSalesSummary, SalesOrderSummary } from "@/lib/types";
 import { canViewCustomers, getCurrentRole } from "@/lib/permissions";
 import { AccessDeniedPanel } from "@/components/AccessDeniedPanel";
 
@@ -71,6 +71,12 @@ export function CustomersPage({ mode = "existing" }: CustomersPageProps) {
       apiFetch<PagedResponse<SalesOrderSummary>>(
         `/sales/orders?page=1&pageSize=6&customerId=${selectedCustomerId}&sortBy=updatedAt&sortDirection=desc`,
       ),
+    enabled: mode === "existing" && Boolean(selectedCustomerId),
+  });
+
+  const customerSummaryQuery = useQuery({
+    queryKey: ["customer-summary", selectedCustomerId],
+    queryFn: () => apiFetch<CustomerSalesSummary>(`/customers/${selectedCustomerId}/summary`),
     enabled: mode === "existing" && Boolean(selectedCustomerId),
   });
 
@@ -144,6 +150,16 @@ export function CustomersPage({ mode = "existing" }: CustomersPageProps) {
 
       {error ? (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+      ) : null}
+      {customersQuery.isLoading && mode === "existing" ? (
+        <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
+          Loading customers...
+        </div>
+      ) : null}
+      {customersQuery.isError && mode === "existing" ? (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          Could not load customer records from the database.
+        </div>
       ) : null}
 
       {mode === "add" ? (
@@ -306,6 +322,23 @@ export function CustomersPage({ mode = "existing" }: CustomersPageProps) {
                 </div>
 
                 <div className="rounded-lg border border-neutral-200 bg-white p-5">
+                    {customerSummaryQuery.data ? (
+                      <div className="mb-5 grid gap-3 md:grid-cols-4">
+                        <SummaryStat label="Total Orders" value={String(customerSummaryQuery.data.totalOrders)} />
+                        <SummaryStat label="Draft" value={String(customerSummaryQuery.data.draftOrders)} />
+                        <SummaryStat label="Confirmed" value={String(customerSummaryQuery.data.confirmedOrders)} />
+                        <SummaryStat label="Total Sales" value={`$${customerSummaryQuery.data.totalAmount}`} />
+                      </div>
+                    ) : customerSummaryQuery.isLoading ? (
+                      <div className="mb-5 rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
+                        Loading order summary...
+                      </div>
+                    ) : null}
+                    {customerSummaryQuery.isError ? (
+                      <div className="mb-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        Could not load order summary.
+                      </div>
+                    ) : null}
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <h4 className="text-base font-semibold">Recent Orders</h4>
@@ -357,6 +390,15 @@ export function CustomersPage({ mode = "existing" }: CustomersPageProps) {
       </div>
       ) : null}
     </section>
+  );
+}
+
+function SummaryStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">{label}</p>
+      <p className="mt-1 text-lg font-semibold">{value}</p>
+    </div>
   );
 }
 
