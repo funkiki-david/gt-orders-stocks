@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { Button } from '@/components/Button';
 import { Drawer } from '@/components/Drawer';
@@ -31,8 +31,23 @@ type ProductsResponse =
       error: string;
     };
 
-function productToInventoryItem(product: ProductRecord): InventoryItem {
+type ProductMutationResponse =
+  | {
+      ok: true;
+      data: ProductRecord;
+    }
+  | {
+      ok: false;
+      error: string;
+    };
+
+type InventoryProductItem = InventoryItem & {
+  id: string;
+};
+
+function productToInventoryItem(product: ProductRecord): InventoryProductItem {
   return {
+    id: product.id,
     sku: product.skuCode,
     name: product.productName,
     category: product.category ?? '',
@@ -41,7 +56,7 @@ function productToInventoryItem(product: ProductRecord): InventoryItem {
   };
 }
 
-function sortInventory(items: InventoryItem[], sortKey: InventorySortKey) {
+function sortInventory<T extends InventoryItem>(items: T[], sortKey: InventorySortKey) {
   const sorted = [...items];
 
   sorted.sort((a, b) => {
@@ -69,58 +84,68 @@ function sortInventory(items: InventoryItem[], sortKey: InventorySortKey) {
 }
 
 export default function InventoryPage() {
-  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [items, setItems] = useState<InventoryProductItem[]>([]);
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<InventorySortKey>('sku-asc');
   const [selectedSku, setSelectedSku] = useState<string>('');
-  const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
-  const [draft, setDraft] = useState<InventoryItem | null>(null);
+  const [editingItem, setEditingItem] = useState<InventoryProductItem | null>(null);
+  const [draft, setDraft] = useState<InventoryProductItem | null>(null);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [productsError, setProductsError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+
+  const loadProducts = useCallback(async (preferredSku?: string) => {
+    setIsLoadingProducts(true);
+    setProductsError('');
+
+    try {
+      const response = await fetch('/api/products', {
+        cache: 'no-store',
+      });
+      const result = (await response.json()) as ProductsResponse;
+
+      if (!response.ok || !result.ok) {
+        throw new Error(result.ok ? 'Failed to load products' : result.error);
+      }
+
+      const nextItems = result.data.map((product) => productToInventoryItem(product));
+
+      setItems(nextItems);
+      setSelectedSku((current) => {
+        const nextSelection = preferredSku ?? current;
+        if (nextSelection && nextItems.some((item) => item.sku === nextSelection)) {
+          return nextSelection;
+        }
+
+        return nextItems[0]?.sku ?? '';
+      });
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
 
-    async function loadProducts() {
-      setIsLoadingProducts(true);
-      setProductsError('');
-
+    async function loadInitialProducts() {
       try {
-        const response = await fetch('/api/products');
-        const result = (await response.json()) as ProductsResponse;
-
-        if (!response.ok || !result.ok) {
-          throw new Error(result.ok ? 'Failed to load products' : result.error);
-        }
-
-        const nextItems = result.data.map((product) => productToInventoryItem(product));
-
-        if (!isMounted) return;
-
-        setItems(nextItems);
-        setSelectedSku((current) => {
-          if (current && nextItems.some((item) => item.sku === current)) {
-            return current;
-          }
-
-          return nextItems[0]?.sku ?? '';
-        });
+        await loadProducts();
       } catch (error) {
-        if (!isMounted) return;
-        setProductsError(error instanceof Error ? error.message : 'Failed to load products');
-      } finally {
-        if (isMounted) {
-          setIsLoadingProducts(false);
+        if (!isMounted) {
+          return;
         }
+
+        setProductsError(error instanceof Error ? error.message : 'Failed to load products');
       }
     }
 
-    loadProducts();
+    loadInitialProducts();
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [loadProducts]);
 
   const filteredItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -169,13 +194,15 @@ export default function InventoryPage() {
     }
   }
 
-  function openEditDrawer(item: InventoryItem) {
+  function openEditDrawer(item: InventoryProductItem) {
     setEditingItem(item);
     setDraft({ ...item, palletLocation: item.palletLocation ?? '' });
+    setSaveError('');
   }
 
   function openAddDrawer() {
-    const blankItem: InventoryItem = {
+    const blankItem: InventoryProductItem = {
+      id: '',
       sku: '',
       name: '',
       category: 'Standard',
@@ -184,20 +211,44 @@ export default function InventoryPage() {
     };
     setEditingItem(null);
     setDraft(blankItem);
+    setSaveError('');
   }
 
-  function saveDraft() {
+  async function saveDraft() {
     if (!draft) return;
 
-    if (editingItem) {
-      setItems((current) => current.map((item) => (item.sku === editingItem.sku ? draft : item)));
-    } else {
-      setItems((current) => [draft, ...current]);
-    }
+    setIsSavingDraft(true);
+    setSaveError('');
 
-    setSelectedSku(draft.sku);
-    setDraft(null);
-    setEditingItem(null);
+    try {
+      const payload = {
+        skuCode: draft.sku,
+        productName: draft.name,
+        category: draft.category,
+        qtyCtn: draft.qty,
+        palletLocation: draft.palletLocation ?? '',
+      };
+      const response = await fetch(editingItem ? `/api/products/${editingItem.id}` : '/api/products', {
+        method: editingItem ? 'PATCH' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      const result = (await response.json()) as ProductMutationResponse;
+
+      if (!response.ok || !result.ok) {
+        throw new Error(result.ok ? 'Could not save product' : result.error);
+      }
+
+      await loadProducts(result.data.skuCode);
+      setDraft(null);
+      setEditingItem(null);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Could not save product');
+    } finally {
+      setIsSavingDraft(false);
+    }
   }
 
   return (
@@ -205,7 +256,7 @@ export default function InventoryPage() {
       <PageHeader title="Inventory" instruction="Step 1: select a SKU from the left. Step 2: review or edit SKU details on the right." />
 
       <div className="mb-3 rounded-xl border border-border bg-card p-2.5 text-xs text-secondaryText">
-        Product records load from PostgreSQL. Add and edit actions remain local-only until the next backend integration step.
+        Product records load from PostgreSQL. Add and edit actions save to the database.
       </div>
 
       {isLoadingProducts ? (
@@ -310,11 +361,26 @@ export default function InventoryPage() {
         title={editingItem ? 'Edit SKU' : 'Add SKU'}
         helper="SKU Code must be unique. Pallet Location is manually editable in v1."
         open={Boolean(draft)}
-        onClose={() => setDraft(null)}
+        onClose={() => {
+          if (isSavingDraft) return;
+          setDraft(null);
+          setEditingItem(null);
+          setSaveError('');
+        }}
         onSave={saveDraft}
       >
         {draft ? (
           <div className="grid gap-4">
+            {saveError ? (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                {saveError}
+              </div>
+            ) : null}
+            {isSavingDraft ? (
+              <div className="rounded-xl border border-border bg-page p-3 text-xs text-secondaryText">
+                Saving product to database...
+              </div>
+            ) : null}
             <FormField label="SKU Code *" value={draft.sku} onChange={(value) => setDraft({ ...draft, sku: value })} />
             <FormField label="Product Description *" value={draft.name} onChange={(value) => setDraft({ ...draft, name: value })} />
             <FormField label="Category" value={draft.category} onChange={(value) => setDraft({ ...draft, category: value })} />
@@ -330,7 +396,7 @@ export default function InventoryPage() {
               onChange={(value) => setDraft({ ...draft, palletLocation: value })}
             />
             <div className="rounded-xl bg-warningBg p-3 text-xs text-warningText">
-              This drawer is a front-end MVP. Pallet Location changes update local state only until the database is added.
+              Product changes save to PostgreSQL. Sales order snapshots are not changed by product edits.
             </div>
           </div>
         ) : null}
@@ -343,8 +409,8 @@ function InventoryDetailPanel({
   item,
   onEditItem,
 }: {
-  item?: InventoryItem;
-  onEditItem: (item: InventoryItem) => void;
+  item?: InventoryProductItem;
+  onEditItem: (item: InventoryProductItem) => void;
 }) {
   if (!item) {
     return (
