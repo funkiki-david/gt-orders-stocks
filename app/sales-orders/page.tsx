@@ -48,7 +48,6 @@ type CreateOrderDraft = {
   po: string;
   payment: string;
   shipMethod: string;
-  shipCost: string;
   salesRep: string;
   items: CreateOrderLineDraft[];
 };
@@ -125,19 +124,36 @@ function createBlankSalesOrderLine(): SalesOrderLineItem {
   };
 }
 
-function createBlankOrder(): CreateOrderDraft {
+function isGeneratedSalesOrderNumber(value: string) {
+  return /^GT-\d{4}-\d{2}-\d{2}-\d+$/.test(value);
+}
+
+function nextSalesOrderNumber(orders: SalesOrder[], date: string) {
+  const orderDate = date || todayValue();
+  const prefix = `GT-${orderDate}-`;
+  const nextSequence =
+    orders.reduce((maxSequence, order) => {
+      if (!order.invoice.startsWith(prefix)) return maxSequence;
+
+      const sequence = Number(order.invoice.slice(prefix.length));
+
+      return Number.isInteger(sequence) && sequence > maxSequence ? sequence : maxSequence;
+    }, 0) + 1;
+
+  return `${prefix}${nextSequence}`;
+}
+
+function createBlankOrder(orders: SalesOrder[]): CreateOrderDraft {
   const today = todayValue();
-  const compactDate = today.replaceAll('-', '');
 
   return {
-    invoice: `GT-${compactDate}-NEW`,
+    invoice: nextSalesOrderNumber(orders, today),
     date: today,
     shipDate: '',
     customer: '',
     po: '',
     payment: '',
     shipMethod: '',
-    shipCost: '',
     salesRep: '',
     items: [createBlankLine()],
   };
@@ -216,8 +232,10 @@ function SalesOrdersContent() {
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [createError, setCreateError] = useState('');
 
-  const loadSalesOrders = useCallback(async (preferredInvoice?: string) => {
-    setIsLoadingOrders(true);
+  const loadSalesOrders = useCallback(async (preferredInvoice?: string, { showLoading = true }: { showLoading?: boolean } = {}) => {
+    if (showLoading) {
+      setIsLoadingOrders(true);
+    }
     setOrdersError('');
 
     try {
@@ -242,7 +260,9 @@ function SalesOrdersContent() {
         return nextOrders[0]?.invoice ?? '';
       });
     } finally {
-      setIsLoadingOrders(false);
+      if (showLoading) {
+        setIsLoadingOrders(false);
+      }
     }
   }, []);
 
@@ -264,6 +284,32 @@ function SalesOrdersContent() {
       isMounted = false;
     };
   }, [loadSalesOrders]);
+
+  useEffect(() => {
+    const hasOpenDraft = Boolean(statusDraft || draftLine || createDraft);
+
+    async function refreshSalesOrders() {
+      if (document.visibilityState !== 'visible' || hasOpenDraft) return;
+      await loadSalesOrders(selectedInvoice, { showLoading: false });
+    }
+
+    function queueRefreshSalesOrders() {
+      refreshSalesOrders().catch((error) => {
+        setOrdersError(error instanceof Error ? error.message : 'Failed to refresh sales orders');
+      });
+    }
+
+    const interval = window.setInterval(queueRefreshSalesOrders, 15000);
+
+    window.addEventListener('focus', queueRefreshSalesOrders);
+    document.addEventListener('visibilitychange', queueRefreshSalesOrders);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', queueRefreshSalesOrders);
+      document.removeEventListener('visibilitychange', queueRefreshSalesOrders);
+    };
+  }, [createDraft, draftLine, loadSalesOrders, selectedInvoice, statusDraft]);
 
   useEffect(() => {
     const requestedSalesOrder = searchParams.get('salesOrder') ?? searchParams.get('invoice');
@@ -427,8 +473,21 @@ function SalesOrdersContent() {
   }
 
   function openCreateDrawer() {
-    setCreateDraft(createBlankOrder());
+    setCreateDraft(createBlankOrder(orders));
     setCreateError('');
+  }
+
+  function updateCreateOrderDate(value: string) {
+    if (!createDraft) return;
+
+    setCreateDraft({
+      ...createDraft,
+      date: value,
+      invoice:
+        !createDraft.invoice || isGeneratedSalesOrderNumber(createDraft.invoice)
+          ? nextSalesOrderNumber(orders, value)
+          : createDraft.invoice,
+    });
   }
 
   function updateCreateLine(index: number, patch: Partial<CreateOrderLineDraft>) {
@@ -478,7 +537,6 @@ function SalesOrdersContent() {
           poNumber: createDraft.po,
           paymentInfo: createDraft.payment,
           shipMethod: createDraft.shipMethod,
-          shipCost: createDraft.shipCost,
           salesRep: createDraft.salesRep,
           items: createDraft.items.map((item) => ({
             skuCode: item.sku,
@@ -734,7 +792,7 @@ function SalesOrdersContent() {
 
       <Drawer
         title="Create Sales Order"
-        helper="Create the Sales Order and line items in PostgreSQL. Inventory is not deducted in this v1 flow."
+        helper="Create the Sales Order and add product lines or customer-facing shipping charges. Inventory is not deducted in this v1 flow."
         open={Boolean(createDraft)}
         onClose={() => {
           if (isCreatingOrder) return;
@@ -758,7 +816,7 @@ function SalesOrdersContent() {
 
             <FormField label="Sales Order # *" value={createDraft.invoice} onChange={(value) => setCreateDraft({ ...createDraft, invoice: value })} />
             <div className="grid gap-3 sm:grid-cols-2">
-              <FormField label="Order Date" type="date" value={createDraft.date} onChange={(value) => setCreateDraft({ ...createDraft, date: value })} />
+              <FormField label="Order Date" type="date" value={createDraft.date} onChange={updateCreateOrderDate} />
               <FormField label="Ship Date" type="date" value={createDraft.shipDate} onChange={(value) => setCreateDraft({ ...createDraft, shipDate: value })} />
             </div>
             <FormField label="Customer *" value={createDraft.customer} onChange={(value) => setCreateDraft({ ...createDraft, customer: value })} />
@@ -767,12 +825,14 @@ function SalesOrdersContent() {
               <FormField label="Sales Rep" value={createDraft.salesRep} onChange={(value) => setCreateDraft({ ...createDraft, salesRep: value })} />
               <FormField label="Payment Info" value={createDraft.payment} onChange={(value) => setCreateDraft({ ...createDraft, payment: value })} />
               <FormField label="Ship Method" value={createDraft.shipMethod} onChange={(value) => setCreateDraft({ ...createDraft, shipMethod: value })} />
-              <FormField label="Ship Cost" type="number" value={createDraft.shipCost} onChange={(value) => setCreateDraft({ ...createDraft, shipCost: value })} />
             </div>
 
             <div className="flex items-center justify-between border-t border-border pt-4">
               <div className="font-title text-base font-semibold text-primaryText">Line Items</div>
               <Button variant="secondary" size="small" onClick={addCreateLine}>Add Line</Button>
+            </div>
+            <div className="rounded-xl bg-warningBg p-3 text-xs text-warningText">
+              Use line items for products and shipping charges. For shipping, enter SKU SHIPPING, Qty 1, and the shipping amount as Unit Price.
             </div>
 
             {createDraft.items.map((item, index) => (
@@ -788,27 +848,50 @@ function SalesOrdersContent() {
                     Remove
                   </Button>
                 </div>
-                <FormField label="SKU Code *" value={item.sku} onChange={(value) => updateCreateLine(index, { sku: value })} />
+                <FormField
+                  label="SKU Code *"
+                  value={item.sku}
+                  placeholder="SKU code or SHIPPING"
+                  onChange={(value) => updateCreateLine(index, { sku: value })}
+                />
                 <FormField
                   label="Description *"
                   value={item.description}
+                  placeholder="Product description, shipping method, or shipping charge note"
                   onChange={(value) => updateCreateLine(index, { description: value })}
                   multiline
                 />
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <FormField label="Width" value={item.width} onChange={(value) => updateCreateLine(index, { width: value })} />
-                  <FormField label="Length" value={item.length} onChange={(value) => updateCreateLine(index, { length: value })} />
-                  <FormField label="Category" value={item.category} onChange={(value) => updateCreateLine(index, { category: value })} />
                   <FormField
-                    label="Qty (CTN)"
+                    label="Width"
+                    value={item.width}
+                    placeholder="Optional for product lines; leave blank for shipping"
+                    onChange={(value) => updateCreateLine(index, { width: value })}
+                  />
+                  <FormField
+                    label="Length"
+                    value={item.length}
+                    placeholder="Optional for product lines; leave blank for shipping"
+                    onChange={(value) => updateCreateLine(index, { length: value })}
+                  />
+                  <FormField
+                    label="Category"
+                    value={item.category}
+                    placeholder="Product category or Shipping"
+                    onChange={(value) => updateCreateLine(index, { category: value })}
+                  />
+                  <FormField
+                    label="Qty"
                     type="number"
                     value={item.qty}
+                    placeholder="Quantity, or 1 for shipping"
                     onChange={(value) => updateCreateLine(index, { qty: Number(value) })}
                   />
                   <FormField
                     label="Unit Price"
                     type="number"
                     value={item.unitPrice}
+                    placeholder="Unit price or shipping amount"
                     onChange={(value) => updateCreateLine(index, { unitPrice: Number(value) })}
                   />
                 </div>
@@ -817,10 +900,6 @@ function SalesOrdersContent() {
                 </div>
               </div>
             ))}
-
-            <div className="rounded-xl bg-warningBg p-3 text-xs text-warningText">
-              Required fields are Sales Order #, Customer, SKU Code, Description, Qty, and Unit Price. Product master data is not changed by this form.
-            </div>
           </div>
         ) : null}
       </Drawer>

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { Button } from '@/components/Button';
 import { Drawer } from '@/components/Drawer';
@@ -158,11 +158,11 @@ export default function CustomersPage() {
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(true);
   const [customersError, setCustomersError] = useState('');
 
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadCustomers() {
-      setIsLoadingCustomers(true);
+  const loadCustomers = useCallback(
+    async ({ showLoading = true }: { showLoading?: boolean } = {}) => {
+      if (showLoading) {
+        setIsLoadingCustomers(true);
+      }
       setCustomersError('');
 
       try {
@@ -177,8 +177,6 @@ export default function CustomersPage() {
 
         const nextCustomers = result.data.map((customer) => normalizeCustomer(customer.ui));
         const nextOrders = result.data.flatMap((customer) => customer.salesOrders.map((order) => mapSalesOrder(order)));
-
-        if (!isMounted) return;
 
         setCustomers(nextCustomers);
         setOrders(nextOrders);
@@ -197,21 +195,45 @@ export default function CustomersPage() {
           return nextOrders[0]?.invoice ?? '';
         });
       } catch (error) {
-        if (!isMounted) return;
         setCustomersError(error instanceof Error ? error.message : 'Failed to load customers');
       } finally {
-        if (isMounted) {
+        if (showLoading) {
           setIsLoadingCustomers(false);
         }
       }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    loadCustomers();
+  }, [loadCustomers]);
+
+  useEffect(() => {
+    const hasOpenDraft = Boolean(draft || paymentDraft || draftLine);
+
+    async function refreshCustomers() {
+      if (document.visibilityState !== 'visible' || hasOpenDraft) return;
+      await loadCustomers({ showLoading: false });
     }
 
-    loadCustomers();
+    function queueRefreshCustomers() {
+      refreshCustomers().catch((error) => {
+        setCustomersError(error instanceof Error ? error.message : 'Failed to refresh customers');
+      });
+    }
+
+    const interval = window.setInterval(queueRefreshCustomers, 15000);
+
+    window.addEventListener('focus', queueRefreshCustomers);
+    document.addEventListener('visibilitychange', queueRefreshCustomers);
 
     return () => {
-      isMounted = false;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', queueRefreshCustomers);
+      document.removeEventListener('visibilitychange', queueRefreshCustomers);
     };
-  }, []);
+  }, [draft, draftLine, loadCustomers, paymentDraft]);
 
   const filteredCustomers = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
