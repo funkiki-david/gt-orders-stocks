@@ -4,6 +4,7 @@ import type { SalesOrder, SalesOrderLineItem } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { Button } from './Button';
 import { DataTable } from './DataTable';
+import { StatusText } from './StatusText';
 
 type SalesOrderDetailProps = {
   order?: SalesOrder;
@@ -40,8 +41,8 @@ export function SalesOrderDetail({ order, onEditLine, onUpdateStatus }: SalesOrd
           {onUpdateStatus ? <Button size="small" onClick={() => onUpdateStatus(order)}>Update Status</Button> : null}
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-1">
-          <span>Fulfillment: {fulfillmentStatus}</span>
-          <span>Payment: {paymentStatus}</span>
+          <span>Fulfillment: <StatusText kind="fulfillment" value={fulfillmentStatus} /></span>
+          <span>Payment: <StatusText kind="payment" value={paymentStatus} /></span>
           {fulfillmentStatus === 'Cancelled' ? <span>Cancel Reason: {order.cancelReason || 'Not set'}</span> : null}
           {order.statusNotes ? <span>Notes: {order.statusNotes}</span> : null}
         </div>

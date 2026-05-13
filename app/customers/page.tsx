@@ -8,6 +8,7 @@ import { Drawer } from '@/components/Drawer';
 import { FormField } from '@/components/FormField';
 import { PageHeader } from '@/components/PageHeader';
 import { SearchBar } from '@/components/SearchBar';
+import { StatusText } from '@/components/StatusText';
 import { formatCurrency } from '@/lib/format';
 import type { Customer, SalesOrder, SalesOrderLineItem } from '@/lib/types';
 
@@ -109,6 +110,10 @@ function mapSalesOrder(order: CustomerApiSalesOrder): SalesOrder {
     paymentStatus: order.paymentStatus as SalesOrder['paymentStatus'],
     cancelReason: mapCancelReason(order.cancelReason),
   };
+}
+
+function fallbackPaymentStatus(order: SalesOrder) {
+  return order.paymentStatus ?? (order.payment?.toLowerCase().includes('paid') ? 'Paid' : 'Unpaid');
 }
 
 function sortCustomers(customers: Customer[], sortKey: CustomerSortKey) {
@@ -604,7 +609,8 @@ function CompactOrdersTable({
             <th className="h-8 border-b border-border px-2 text-left font-semibold text-primaryText">Sales Order #</th>
             <th className="h-8 border-b border-border px-2 text-left font-semibold text-primaryText">Date</th>
             <th className="h-8 border-b border-border px-2 text-left font-semibold text-primaryText">PO #</th>
-            <th className="h-8 border-b border-border px-2 text-left font-semibold text-primaryText">Status</th>
+            <th className="h-8 border-b border-border px-2 text-left font-semibold text-primaryText">Fulfillment Status</th>
+            <th className="h-8 border-b border-border px-2 text-left font-semibold text-primaryText">Payment Status</th>
             <th className="h-8 border-b border-border px-2 text-right font-semibold text-primaryText">Subtotal</th>
           </tr>
         </thead>
@@ -621,7 +627,12 @@ function CompactOrdersTable({
                 <td className="border-b border-border px-2 py-2 text-primaryText">{order.invoice}</td>
                 <td className="border-b border-border px-2 py-2 text-primaryText">{order.date}</td>
                 <td className="border-b border-border px-2 py-2 text-primaryText">{order.po || '—'}</td>
-                <td className="border-b border-border px-2 py-2 text-primaryText">{order.payment || '—'}</td>
+                <td className="border-b border-border px-2 py-2">
+                  <StatusText kind="fulfillment" value={order.fulfillmentStatus ?? 'Open'} />
+                </td>
+                <td className="border-b border-border px-2 py-2">
+                  <StatusText kind="payment" value={fallbackPaymentStatus(order)} />
+                </td>
                 <td className="border-b border-border px-2 py-2 text-right text-primaryText">{formatCurrency(order.subtotal)}</td>
               </tr>
             );
