@@ -829,7 +829,7 @@ function SalesOrdersContent() {
         title={lineDrawerMode === 'add' ? 'Add Item' : 'Edit Line Item'}
         helper={
           lineDrawerMode === 'add'
-            ? 'Add this item to the selected Sales Order. Inventory is not deducted in this v1 flow.'
+            ? 'Add a product line or shipping charge to this Sales Order. Use SKU SHIPPING and Qty 1 for shipping.'
             : 'Line item changes update this Sales Order only. They do not update Inventory master data.'
         }
         open={Boolean(draftLine)}
@@ -854,33 +854,56 @@ function SalesOrdersContent() {
                 Saving line item to database...
               </div>
             ) : null}
-            <FormField label="SKU Code" value={draftLine.sku} onChange={(value) => setDraftLine({ ...draftLine, sku: value })} />
+            <FormField
+              label="SKU Code"
+              value={draftLine.sku}
+              placeholder={lineDrawerMode === 'add' ? 'SKU code or SHIPPING' : undefined}
+              onChange={(value) => setDraftLine({ ...draftLine, sku: value })}
+            />
             <FormField
               label="Description"
               value={draftLine.description}
+              placeholder={lineDrawerMode === 'add' ? 'Product description, shipping method, or shipping charge note' : undefined}
               onChange={(value) => setDraftLine({ ...draftLine, description: value })}
               multiline
             />
-            <FormField label="Width" value={draftLine.width} onChange={(value) => setDraftLine({ ...draftLine, width: value })} />
-            <FormField label="Length" value={draftLine.length} onChange={(value) => setDraftLine({ ...draftLine, length: value })} />
-            <FormField label="Category" value={draftLine.category} onChange={(value) => setDraftLine({ ...draftLine, category: value })} />
             <FormField
-              label="Qty (CTN)"
+              label="Width"
+              value={draftLine.width}
+              placeholder={lineDrawerMode === 'add' ? 'Optional for product lines; leave blank for shipping' : undefined}
+              onChange={(value) => setDraftLine({ ...draftLine, width: value })}
+            />
+            <FormField
+              label="Length"
+              value={draftLine.length}
+              placeholder={lineDrawerMode === 'add' ? 'Optional for product lines; leave blank for shipping' : undefined}
+              onChange={(value) => setDraftLine({ ...draftLine, length: value })}
+            />
+            <FormField
+              label="Category"
+              value={draftLine.category}
+              placeholder={lineDrawerMode === 'add' ? 'Product category or Shipping' : undefined}
+              onChange={(value) => setDraftLine({ ...draftLine, category: value })}
+            />
+            <FormField
+              label={lineDrawerMode === 'add' ? 'Qty' : 'Qty (CTN)'}
               type="number"
               value={draftLine.qty}
+              placeholder={lineDrawerMode === 'add' ? 'Quantity, or 1 for shipping' : undefined}
               onChange={(value) => setDraftLine({ ...draftLine, qty: Number(value) })}
             />
             <FormField
               label="Unit Price"
               type="number"
               value={draftLine.unitPrice}
+              placeholder={lineDrawerMode === 'add' ? 'Unit price or shipping amount' : undefined}
               onChange={(value) => setDraftLine({ ...draftLine, unitPrice: Number(value) })}
             />
             <div className="rounded-xl bg-page p-3 text-sm text-primaryText">
               Preview Total: {formatCurrency(Number(draftLine.qty || 0) * Number(draftLine.unitPrice || 0))}
             </div>
             <div className="rounded-xl bg-warningBg p-3 text-xs text-warningText">
-              Do not deduct inventory in v1. Inventory deduction should be designed after shipment workflow is defined.
+              For shipping, use SKU SHIPPING, Qty 1, and enter the shipping charge as Unit Price. Inventory is not deducted in this v1 flow.
             </div>
           </div>
         ) : null}
