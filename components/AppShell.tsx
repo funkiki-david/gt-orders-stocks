@@ -42,7 +42,7 @@ export function AppShell({ children }: AppShellProps) {
         <div className="mx-auto max-w-7xl">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="font-title text-[22px] font-semibold text-primaryText">
-              GT Orders & Stocks <span className="font-body text-xs font-normal text-helperText">front-end MVP</span>
+              GT Orders & Stocks <span className="font-body text-xs font-normal text-helperText">Version 0.5</span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <div className="rounded-full bg-successBg px-3 py-1.5 text-xs text-successText">
