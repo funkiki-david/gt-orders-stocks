@@ -59,6 +59,7 @@ export function AppShell({ children }: AppShellProps) {
                 <Link
                   key={item.href}
                   href={item.href}
+                  prefetch={false}
                   className={`rounded-t-xl px-4 py-2 text-sm ${
                     isActive
                       ? 'border border-b-page border-border bg-page font-semibold text-primaryText'
