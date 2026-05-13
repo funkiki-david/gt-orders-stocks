@@ -889,7 +889,6 @@ function SalesOrdersContent() {
                   />
                   <FormField
                     label="Unit Price"
-                    type="number"
                     value={item.unitPrice}
                     placeholder="Unit price or shipping amount"
                     onChange={(value) => updateCreateLine(index, { unitPrice: Number(value) })}
@@ -973,7 +972,6 @@ function SalesOrdersContent() {
             />
             <FormField
               label="Unit Price"
-              type="number"
               value={draftLine.unitPrice}
               placeholder={lineDrawerMode === 'add' ? 'Unit price or shipping amount' : undefined}
               onChange={(value) => setDraftLine({ ...draftLine, unitPrice: Number(value) })}
