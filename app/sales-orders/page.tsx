@@ -28,6 +28,8 @@ type StatusDraft = {
   statusNotes: string;
 };
 
+type LineDrawerMode = 'add' | 'edit';
+
 type CreateOrderLineDraft = {
   sku: string;
   description: string;
@@ -110,6 +112,19 @@ function createBlankLine(): CreateOrderLineDraft {
   };
 }
 
+function createBlankSalesOrderLine(): SalesOrderLineItem {
+  return {
+    sku: '',
+    description: '',
+    width: '',
+    length: '',
+    category: '',
+    qty: 1,
+    unitPrice: 0,
+    total: 0,
+  };
+}
+
 function createBlankOrder(): CreateOrderDraft {
   const today = todayValue();
   const compactDate = today.replaceAll('-', '');
@@ -188,6 +203,8 @@ function SalesOrdersContent() {
   const [selectedInvoice, setSelectedInvoice] = useState<string>('');
   const [editingLine, setEditingLine] = useState<SalesOrderLineItem | null>(null);
   const [draftLine, setDraftLine] = useState<SalesOrderLineItem | null>(null);
+  const [lineDrawerMode, setLineDrawerMode] = useState<LineDrawerMode>('edit');
+  const [lineOrder, setLineOrder] = useState<SalesOrder | null>(null);
   const [statusDraft, setStatusDraft] = useState<StatusDraft | null>(null);
   const [isLoadingOrders, setIsLoadingOrders] = useState(true);
   const [ordersError, setOrdersError] = useState('');
@@ -289,14 +306,28 @@ function SalesOrdersContent() {
   const customerCount = new Set(filteredOrders.map((order) => order.customer)).size;
 
   function openLineDrawer(line: SalesOrderLineItem) {
+    setLineDrawerMode('edit');
     setEditingLine(line);
     setDraftLine({ ...line });
+    setLineOrder(selectedOrder ?? null);
+    setLineError('');
+  }
+
+  function openAddLineDrawer(order: SalesOrder) {
+    setLineDrawerMode('add');
+    setEditingLine(null);
+    setDraftLine(createBlankSalesOrderLine());
+    setLineOrder(order);
     setLineError('');
   }
 
   async function saveLineDraft() {
-    if (!draftLine || !editingLine || !selectedOrder) return;
-    if (!editingLine.id) {
+    if (!draftLine || !lineOrder) return;
+    if (lineDrawerMode === 'add' && !lineOrder.id) {
+      setLineError('Could not add line item because the order database id is missing.');
+      return;
+    }
+    if (lineDrawerMode === 'edit' && !editingLine?.id) {
       setLineError('Could not save line item because its database id is missing.');
       return;
     }
@@ -305,31 +336,36 @@ function SalesOrdersContent() {
     setLineError('');
 
     try {
-      const response = await fetch(`/api/sales-order-items/${editingLine.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
+      const response = await fetch(
+        lineDrawerMode === 'add' ? '/api/sales-order-items' : `/api/sales-order-items/${editingLine?.id}`,
+        {
+          method: lineDrawerMode === 'add' ? 'POST' : 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            salesOrderId: lineDrawerMode === 'add' ? lineOrder.id : undefined,
+            skuCode: draftLine.sku,
+            productDescription: draftLine.description,
+            width: draftLine.width,
+            length: draftLine.length,
+            category: draftLine.category,
+            qtyCtn: draftLine.qty,
+            unitPrice: draftLine.unitPrice,
+            total: Number(draftLine.qty || 0) * Number(draftLine.unitPrice || 0),
+          }),
         },
-        body: JSON.stringify({
-          skuCode: draftLine.sku,
-          productDescription: draftLine.description,
-          width: draftLine.width,
-          length: draftLine.length,
-          category: draftLine.category,
-          qtyCtn: draftLine.qty,
-          unitPrice: draftLine.unitPrice,
-          total: Number(draftLine.qty || 0) * Number(draftLine.unitPrice || 0),
-        }),
-      });
+      );
       const result = (await response.json()) as MutationResponse;
 
       if (!response.ok || !result.ok) {
         throw new Error(result.ok ? 'Could not save line item' : result.error);
       }
 
-      await loadSalesOrders(selectedOrder.invoice);
+      await loadSalesOrders(lineOrder.invoice);
       setEditingLine(null);
       setDraftLine(null);
+      setLineOrder(null);
     } catch (error) {
       setLineError(error instanceof Error ? error.message : 'Could not save line item');
     } finally {
@@ -598,7 +634,12 @@ function SalesOrdersContent() {
           <div className="mb-3 rounded-xl bg-successBg p-3 text-sm text-successText">
             <strong>Step 2:</strong> Review the selected Sales Order here. Current selection: <strong>{selectedOrder?.invoice ?? 'None'}</strong>
           </div>
-          <SalesOrderDetail order={selectedOrder} onEditLine={openLineDrawer} onUpdateStatus={openStatusDrawer} />
+          <SalesOrderDetail
+            order={selectedOrder}
+            onAddLine={openAddLineDrawer}
+            onEditLine={openLineDrawer}
+            onUpdateStatus={openStatusDrawer}
+          />
         </section>
       </div>
 
@@ -785,13 +826,18 @@ function SalesOrdersContent() {
       </Drawer>
 
       <Drawer
-        title="Edit Line Item"
-        helper="Line item changes update this Sales Order only. They do not update Inventory master data."
+        title={lineDrawerMode === 'add' ? 'Add Item' : 'Edit Line Item'}
+        helper={
+          lineDrawerMode === 'add'
+            ? 'Add this item to the selected Sales Order. Inventory is not deducted in this v1 flow.'
+            : 'Line item changes update this Sales Order only. They do not update Inventory master data.'
+        }
         open={Boolean(draftLine)}
         onClose={() => {
           if (isSavingLine) return;
           setEditingLine(null);
           setDraftLine(null);
+          setLineOrder(null);
           setLineError('');
         }}
         onSave={saveLineDraft}

@@ -8,11 +8,12 @@ import { StatusText } from './StatusText';
 
 type SalesOrderDetailProps = {
   order?: SalesOrder;
+  onAddLine?: (order: SalesOrder) => void;
   onEditLine: (line: SalesOrderLineItem) => void;
   onUpdateStatus?: (order: SalesOrder) => void;
 };
 
-export function SalesOrderDetail({ order, onEditLine, onUpdateStatus }: SalesOrderDetailProps) {
+export function SalesOrderDetail({ order, onAddLine, onEditLine, onUpdateStatus }: SalesOrderDetailProps) {
   if (!order) {
     return (
       <section className="rounded-xl border border-border bg-card p-4">
@@ -30,9 +31,12 @@ export function SalesOrderDetail({ order, onEditLine, onUpdateStatus }: SalesOrd
       <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 className="font-title text-[15px] font-semibold text-primaryText">Selected Sales Order</h2>
-          <p className="mt-0.5 text-xs text-helperText">Manual changes in a Sales Order do not update master data in v1.</p>
         </div>
-        <div className="rounded-full bg-secondaryButton px-3 py-1.5 text-xs text-secondaryText">{order.items.length} line items</div>
+        {onAddLine ? (
+          <Button variant="primary" size="small" onClick={() => onAddLine(order)}>
+            Add Item
+          </Button>
+        ) : null}
       </div>
 
       <div className="mb-3 rounded-lg border border-border bg-page px-3 py-2 text-xs text-secondaryText">
