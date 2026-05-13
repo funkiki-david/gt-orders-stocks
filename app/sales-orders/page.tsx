@@ -7,7 +7,7 @@ import { Button } from '@/components/Button';
 import { Drawer } from '@/components/Drawer';
 import { FormField } from '@/components/FormField';
 import { PageHeader } from '@/components/PageHeader';
-import { SalesOrderDetail } from '@/components/SalesOrderDetail';
+import { SalesOrderDetail, type SalesOrderDetailsDraft } from '@/components/SalesOrderDetail';
 import { SearchBar } from '@/components/SearchBar';
 import { formatCurrency } from '@/lib/format';
 import type {
@@ -359,6 +359,35 @@ function SalesOrdersContent() {
     setLineError('');
   }
 
+  async function saveOrderDetails(order: SalesOrder, draft: SalesOrderDetailsDraft) {
+    if (!order.id) {
+      throw new Error('Could not save details because the order database id is missing.');
+    }
+
+    const response = await fetch(`/api/sales-orders/${order.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        salesOrderNumber: draft.invoice,
+        orderDate: draft.date,
+        customerSnapshot: draft.customer,
+        poNumber: draft.po,
+        paymentInfo: draft.payment,
+        shipMethod: draft.shipMethod,
+      }),
+    });
+    const result = (await response.json()) as MutationResponse;
+
+    if (!response.ok || !result.ok) {
+      throw new Error(result.ok ? 'Could not save sales order details' : result.error);
+    }
+
+    await loadSalesOrders(draft.invoice);
+    setQuery(draft.invoice);
+  }
+
   function openAddLineDrawer(order: SalesOrder) {
     setLineDrawerMode('add');
     setEditingLine(null);
@@ -696,6 +725,7 @@ function SalesOrdersContent() {
             order={selectedOrder}
             onAddLine={openAddLineDrawer}
             onEditLine={openLineDrawer}
+            onSaveDetails={saveOrderDetails}
             onUpdateStatus={openStatusDrawer}
           />
         </section>

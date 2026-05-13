@@ -9,6 +9,8 @@ const paymentStatuses: PaymentStatus[] = ['UNPAID', 'PAID', 'NO_CHARGE'];
 const cancelReasons: CancelReason[] = ['CUSTOMER_CANCELLED', 'OUT_OF_STOCK', 'WRONG_ORDER', 'OTHER'];
 
 type SalesOrderUpdateInput = {
+  salesOrderNumber?: unknown;
+  orderDate?: unknown;
   fulfillmentStatus?: unknown;
   paymentStatus?: unknown;
   cancelReason?: unknown;
@@ -39,6 +41,17 @@ function optionalDate(value: unknown) {
   }
 
   return date;
+}
+
+function requiredIfIncluded(value: unknown, field: string) {
+  if (value === undefined) return undefined;
+
+  const text = optionalString(value);
+  if (!text) {
+    throw new Error(`Invalid ${field}`);
+  }
+
+  return text;
 }
 
 function optionalNumber(value: unknown) {
@@ -74,12 +87,23 @@ export async function PATCH(
     const fulfillmentStatus = enumValue(body.fulfillmentStatus, fulfillmentStatuses, 'fulfillmentStatus');
     const isCancelled = fulfillmentStatus === 'CANCELLED';
     const cancelReason = enumValue(body.cancelReason, cancelReasons, 'cancelReason');
+    const customerSnapshot = requiredIfIncluded(body.customerSnapshot, 'customerSnapshot');
+    const matchedCustomer =
+      customerSnapshot === undefined
+        ? undefined
+        : await prisma.customer.findUnique({
+            where: {
+              companyName: customerSnapshot,
+            },
+          });
 
     const updatedSalesOrder = await prisma.salesOrder.update({
       where: {
         id: params.id,
       },
       data: {
+        salesOrderNumber: requiredIfIncluded(body.salesOrderNumber, 'salesOrderNumber'),
+        orderDate: optionalDate(body.orderDate),
         fulfillmentStatus: fulfillmentStatus ?? undefined,
         paymentStatus: enumValue(body.paymentStatus, paymentStatuses, 'paymentStatus') ?? undefined,
         cancelReason: body.fulfillmentStatus === undefined ? undefined : isCancelled ? cancelReason : null,
@@ -90,7 +114,8 @@ export async function PATCH(
         salesRep: optionalString(body.salesRep),
         paymentInfo: optionalString(body.paymentInfo),
         poNumber: optionalString(body.poNumber),
-        customerSnapshot: optionalString(body.customerSnapshot) ?? undefined,
+        customerId: customerSnapshot === undefined ? undefined : matchedCustomer?.id ?? null,
+        customerSnapshot,
       },
       include: {
         customer: true,

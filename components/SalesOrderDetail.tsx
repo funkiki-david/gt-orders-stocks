@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import type { SalesOrder, SalesOrderLineItem } from '@/lib/types';
 import { formatCurrency } from '@/lib/format';
 import { Button } from './Button';
@@ -10,10 +11,48 @@ type SalesOrderDetailProps = {
   order?: SalesOrder;
   onAddLine?: (order: SalesOrder) => void;
   onEditLine: (line: SalesOrderLineItem) => void;
+  onSaveDetails?: (order: SalesOrder, draft: SalesOrderDetailsDraft) => Promise<void>;
   onUpdateStatus?: (order: SalesOrder) => void;
 };
 
-export function SalesOrderDetail({ order, onAddLine, onEditLine, onUpdateStatus }: SalesOrderDetailProps) {
+export type SalesOrderDetailsDraft = {
+  invoice: string;
+  date: string;
+  customer: string;
+  po: string;
+  payment: string;
+  shipMethod: string;
+};
+
+function detailsDraftFromOrder(order: SalesOrder): SalesOrderDetailsDraft {
+  return {
+    invoice: order.invoice,
+    date: order.date,
+    customer: order.customer,
+    po: order.po,
+    payment: order.payment,
+    shipMethod: order.shipMethod,
+  };
+}
+
+export function SalesOrderDetail({ order, onAddLine, onEditLine, onSaveDetails, onUpdateStatus }: SalesOrderDetailProps) {
+  const [detailsDraft, setDetailsDraft] = useState<SalesOrderDetailsDraft | null>(null);
+  const [isSavingDetails, setIsSavingDetails] = useState(false);
+  const [detailsError, setDetailsError] = useState('');
+
+  useEffect(() => {
+    setDetailsDraft(order ? detailsDraftFromOrder(order) : null);
+    setDetailsError('');
+  }, [order?.id, order?.invoice]);
+
+  const hasDetailsChanges = useMemo(() => {
+    if (!order || !detailsDraft) return false;
+
+    const current = detailsDraftFromOrder(order);
+
+    return Object.entries(current).some(([key, value]) => detailsDraft[key as keyof SalesOrderDetailsDraft] !== value);
+  }, [detailsDraft, order]);
+
   if (!order) {
     return (
       <section className="rounded-xl border border-border bg-card p-4">
@@ -25,6 +64,21 @@ export function SalesOrderDetail({ order, onAddLine, onEditLine, onUpdateStatus 
 
   const fulfillmentStatus = order.fulfillmentStatus ?? 'Open';
   const paymentStatus = order.paymentStatus ?? (order.payment?.toLowerCase().includes('paid') ? 'Paid' : 'Unpaid');
+
+  async function saveDetails() {
+    if (!order || !detailsDraft || !onSaveDetails) return;
+
+    setIsSavingDetails(true);
+    setDetailsError('');
+
+    try {
+      await onSaveDetails(order, detailsDraft);
+    } catch (error) {
+      setDetailsError(error instanceof Error ? error.message : 'Could not save sales order details');
+    } finally {
+      setIsSavingDetails(false);
+    }
+  }
 
   return (
     <section className="rounded-xl border border-border bg-card p-3">
@@ -51,14 +105,72 @@ export function SalesOrderDetail({ order, onAddLine, onEditLine, onUpdateStatus 
         </div>
       </div>
 
+      {detailsError ? (
+        <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+          {detailsError}
+        </div>
+      ) : null}
+      {isSavingDetails ? (
+        <div className="mb-3 rounded-xl border border-border bg-page p-3 text-xs text-secondaryText">
+          Saving sales order details...
+        </div>
+      ) : null}
+
       <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-        <ReadOnlyField label="Sales Order #" value={order.invoice} />
-        <ReadOnlyField label="Order Date" value={order.date} />
-        <ReadOnlyField label="Customer" value={order.customer} />
-        <ReadOnlyField label="PO #" value={order.po || '—'} />
-        <ReadOnlyField label="Payment Info" value={order.payment || '—'} />
-        <ReadOnlyField label="Ship Method" value={order.shipMethod || '—'} />
+        <EditableField
+          label="Sales Order #"
+          value={detailsDraft?.invoice ?? ''}
+          onChange={(value) => setDetailsDraft((draft) => (draft ? { ...draft, invoice: value } : draft))}
+        />
+        <EditableField
+          label="Order Date"
+          type="date"
+          value={detailsDraft?.date ?? ''}
+          onChange={(value) => setDetailsDraft((draft) => (draft ? { ...draft, date: value } : draft))}
+        />
+        <EditableField
+          label="Customer"
+          value={detailsDraft?.customer ?? ''}
+          onChange={(value) => setDetailsDraft((draft) => (draft ? { ...draft, customer: value } : draft))}
+        />
+        <EditableField
+          label="PO #"
+          value={detailsDraft?.po ?? ''}
+          onChange={(value) => setDetailsDraft((draft) => (draft ? { ...draft, po: value } : draft))}
+        />
+        <EditableField
+          label="Payment Info"
+          value={detailsDraft?.payment ?? ''}
+          onChange={(value) => setDetailsDraft((draft) => (draft ? { ...draft, payment: value } : draft))}
+        />
+        <EditableField
+          label="Ship Method"
+          value={detailsDraft?.shipMethod ?? ''}
+          onChange={(value) => setDetailsDraft((draft) => (draft ? { ...draft, shipMethod: value } : draft))}
+        />
       </div>
+      {onSaveDetails ? (
+        <div className="mb-3 flex flex-wrap justify-end gap-2">
+          <Button
+            variant="primary"
+            size="small"
+            disabled={!hasDetailsChanges || isSavingDetails}
+            onClick={saveDetails}
+          >
+            Save Details
+          </Button>
+          <Button
+            size="small"
+            disabled={!hasDetailsChanges || isSavingDetails}
+            onClick={() => {
+              setDetailsDraft(detailsDraftFromOrder(order));
+              setDetailsError('');
+            }}
+          >
+            Cancel
+          </Button>
+        </div>
+      ) : null}
 
       <DataTable
         rows={order.items}
@@ -101,13 +213,24 @@ export function SalesOrderDetail({ order, onAddLine, onEditLine, onUpdateStatus 
   );
 }
 
-function ReadOnlyField({ label, value }: { label: string; value: string }) {
+function EditableField({
+  label,
+  value,
+  onChange,
+  type = 'text',
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+}) {
   return (
     <label className="block">
       <span className="mb-1 block text-xs font-medium text-primaryText">{label}</span>
       <input
+        type={type}
         value={value}
-        readOnly
+        onChange={(event) => onChange(event.target.value)}
         className="h-8 w-full rounded-md border border-border bg-white px-2 text-[13px] text-primaryText"
       />
     </label>
