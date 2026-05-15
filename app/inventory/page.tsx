@@ -45,6 +45,17 @@ type InventoryProductItem = InventoryItem & {
   id: string;
 };
 
+type EditingActivity = {
+  id: string;
+  sku: string;
+  actor: string;
+  action: 'Added' | 'Edited';
+  summary: string;
+  timestamp: string;
+};
+
+const categoryOptions = ['Standard', 'Short Size', 'Sample'] as const;
+
 function productToInventoryItem(product: ProductRecord): InventoryProductItem {
   return {
     id: product.id,
@@ -83,6 +94,35 @@ function sortInventory<T extends InventoryItem>(items: T[], sortKey: InventorySo
   return sorted;
 }
 
+function readCurrentRole() {
+  if (typeof document === 'undefined') return 'Unknown user';
+
+  const roleCookie = document.cookie
+    .split('; ')
+    .find((cookie) => cookie.startsWith('gt_role='))
+    ?.split('=')[1];
+
+  return roleCookie ? decodeURIComponent(roleCookie) : 'Unknown user';
+}
+
+function describeProductChanges(previousItem: InventoryProductItem | null, nextItem: InventoryProductItem) {
+  if (!previousItem) {
+    return `Created SKU ${nextItem.sku}`;
+  }
+
+  const changes = [
+    ['SKU Code', previousItem.sku, nextItem.sku],
+    ['Product Description', previousItem.name, nextItem.name],
+    ['Category', previousItem.category || 'Not set', nextItem.category || 'Not set'],
+    ['Total Qty (CTN)', String(previousItem.qty), String(nextItem.qty)],
+    ['Pallet Location', previousItem.palletLocation || 'Not set', nextItem.palletLocation || 'Not set'],
+  ]
+    .filter(([, before, after]) => before !== after)
+    .map(([label, before, after]) => `${label}: ${before} -> ${after}`);
+
+  return changes.length > 0 ? changes.join('; ') : 'Saved with no visible field changes';
+}
+
 export default function InventoryPage() {
   const [items, setItems] = useState<InventoryProductItem[]>([]);
   const [query, setQuery] = useState('');
@@ -94,6 +134,8 @@ export default function InventoryPage() {
   const [productsError, setProductsError] = useState('');
   const [saveError, setSaveError] = useState('');
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [currentRole, setCurrentRole] = useState('Unknown user');
+  const [editingActivities, setEditingActivities] = useState<EditingActivity[]>([]);
 
   const loadProducts = useCallback(async (preferredSku?: string) => {
     setIsLoadingProducts(true);
@@ -146,6 +188,10 @@ export default function InventoryPage() {
       isMounted = false;
     };
   }, [loadProducts]);
+
+  useEffect(() => {
+    setCurrentRole(readCurrentRole());
+  }, []);
 
   const filteredItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -240,6 +286,22 @@ export default function InventoryPage() {
       if (!response.ok || !result.ok) {
         throw new Error(result.ok ? 'Could not save product' : result.error);
       }
+
+      const savedItem = productToInventoryItem(result.data);
+      const activitySummary = describeProductChanges(editingItem, savedItem);
+      const activity: EditingActivity = {
+        id: `${result.data.id}-${Date.now()}`,
+        sku: savedItem.sku,
+        actor: currentRole,
+        action: editingItem ? 'Edited' : 'Added',
+        summary: activitySummary,
+        timestamp: new Date().toISOString(),
+      };
+
+      setEditingActivities((current) => [
+        activity,
+        ...current,
+      ].slice(0, 12));
 
       await loadProducts(result.data.skuCode);
       setDraft(null);
@@ -353,7 +415,11 @@ export default function InventoryPage() {
           <div className="mb-3 rounded-xl bg-successBg p-3 text-sm text-successText">
             <strong>Step 2:</strong> Review the selected SKU here. Current selection: <strong>{selectedItem?.sku ?? 'None'}</strong>
           </div>
-          <InventoryDetailPanel item={selectedItem} onEditItem={openEditDrawer} />
+          <InventoryDetailPanel
+            item={selectedItem}
+            onEditItem={openEditDrawer}
+            activities={editingActivities.filter((activity) => activity.sku === selectedItem?.sku)}
+          />
         </section>
       </div>
 
@@ -383,7 +449,20 @@ export default function InventoryPage() {
             ) : null}
             <FormField label="SKU Code *" value={draft.sku} onChange={(value) => setDraft({ ...draft, sku: value })} />
             <FormField label="Product Description *" value={draft.name} onChange={(value) => setDraft({ ...draft, name: value })} />
-            <FormField label="Category" value={draft.category} onChange={(value) => setDraft({ ...draft, category: value })} />
+            <label className="block">
+              <span className="mb-1.5 block text-[13px] font-medium text-primaryText">Category</span>
+              <select
+                value={draft.category}
+                onChange={(event) => setDraft({ ...draft, category: event.target.value })}
+                className="h-[34px] w-full rounded-md border border-border bg-white px-3 text-sm text-primaryText"
+              >
+                {categoryOptions.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </label>
             <FormField
               label="Total Qty (CTN) *"
               type="number"
@@ -408,9 +487,11 @@ export default function InventoryPage() {
 function InventoryDetailPanel({
   item,
   onEditItem,
+  activities,
 }: {
   item?: InventoryProductItem;
   onEditItem: (item: InventoryProductItem) => void;
+  activities: EditingActivity[];
 }) {
   if (!item) {
     return (
@@ -449,8 +530,23 @@ function InventoryDetailPanel({
         </div>
       </div>
 
-      <div className="rounded-lg bg-warningBg px-3 py-2 text-xs text-warningText">
-        <strong>Next:</strong> Use Edit SKU to update Qty or Pallet Location. Changes remain local until database is added.
+      <div className="rounded-lg border border-border bg-page p-3">
+        <div className="mb-2 font-title text-[15px] font-semibold text-primaryText">Editing Activity</div>
+        {activities.length > 0 ? (
+          <div className="grid gap-2">
+            {activities.map((activity) => (
+              <div key={activity.id} className="rounded-md border border-border bg-white px-3 py-2 text-xs text-secondaryText">
+                <div className="font-semibold text-primaryText">
+                  {activity.actor} {activity.action.toLowerCase()} this SKU
+                </div>
+                <div>{activity.summary}</div>
+                <div className="mt-1 text-helperText">{new Date(activity.timestamp).toLocaleString()}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-secondaryText">No edits recorded in this browser session yet.</p>
+        )}
       </div>
     </section>
   );
