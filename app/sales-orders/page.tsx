@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
 import { Button } from '@/components/Button';
@@ -194,6 +194,26 @@ function sortOrders(orders: SalesOrder[], sortKey: SortKey) {
   return sorted;
 }
 
+function orderMatchesQuery(order: SalesOrder, query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+
+  if (!normalizedQuery) return true;
+
+  return [
+    order.invoice,
+    order.customer,
+    order.po,
+    order.payment,
+    order.fulfillmentStatus ?? '',
+    order.paymentStatus ?? '',
+    order.cancelReason ?? '',
+    order.items.map((item) => `${item.sku} ${item.description}`).join(' '),
+  ]
+    .join(' ')
+    .toLowerCase()
+    .includes(normalizedQuery);
+}
+
 export default function SalesOrdersPage() {
   return (
     <Suspense fallback={<SalesOrdersLoading />}>
@@ -231,6 +251,9 @@ function SalesOrdersContent() {
   const [createDraft, setCreateDraft] = useState<CreateOrderDraft | null>(null);
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [hiddenUpdatedOrders, setHiddenUpdatedOrders] = useState<SalesOrder[]>([]);
+  const queryRef = useRef('');
 
   const loadSalesOrders = useCallback(async (preferredInvoice?: string, { showLoading = true }: { showLoading?: boolean } = {}) => {
     if (showLoading) {
@@ -250,7 +273,23 @@ function SalesOrdersContent() {
 
       const nextOrders = result.data.map((order) => normalizeOrder(order.ui));
 
-      setOrders(nextOrders);
+      setOrders((currentOrders) => {
+        const currentByInvoice = new Map(currentOrders.map((order) => [order.invoice, order]));
+        const changedOrders = nextOrders.filter((order) => {
+          const currentOrder = currentByInvoice.get(order.invoice);
+
+          return !currentOrder || JSON.stringify(currentOrder) !== JSON.stringify(order);
+        });
+        const currentQuery = queryRef.current;
+        const hiddenOrders = currentQuery.trim()
+          ? changedOrders.filter((order) => !orderMatchesQuery(order, currentQuery))
+          : [];
+
+        setHiddenUpdatedOrders(hiddenOrders);
+
+        return nextOrders;
+      });
+      setLastSyncedAt(new Date());
       setSelectedInvoice((current) => {
         const nextSelection = preferredInvoice ?? current;
         if (nextSelection && nextOrders.some((order) => order.invoice === nextSelection)) {
@@ -265,6 +304,10 @@ function SalesOrdersContent() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    queryRef.current = query;
+  }, [query]);
 
   useEffect(() => {
     let isMounted = true;
@@ -325,24 +368,7 @@ function SalesOrdersContent() {
   }, [orders, searchParams]);
 
   const filteredOrders = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    const matchedOrders = normalizedQuery
-      ? orders.filter((order) =>
-          [
-            order.invoice,
-            order.customer,
-            order.po,
-            order.payment,
-            order.fulfillmentStatus ?? '',
-            order.paymentStatus ?? '',
-            order.cancelReason ?? '',
-            order.items.map((item) => `${item.sku} ${item.description}`).join(' '),
-          ]
-            .join(' ')
-            .toLowerCase()
-            .includes(normalizedQuery),
-        )
-      : orders;
+    const matchedOrders = query.trim() ? orders.filter((order) => orderMatchesQuery(order, query)) : orders;
 
     return sortOrders(matchedOrders, sortKey);
   }, [orders, query, sortKey]);
@@ -597,6 +623,9 @@ function SalesOrdersContent() {
 
   function handleSearch(value: string) {
     setQuery(value);
+    if (!value.trim()) {
+      setHiddenUpdatedOrders([]);
+    }
     const normalizedQuery = value.trim().toLowerCase();
     const firstMatch = sortOrders(orders, sortKey).find((order) =>
       [
@@ -616,6 +645,17 @@ function SalesOrdersContent() {
 
     if (firstMatch) {
       setSelectedInvoice(firstMatch.invoice);
+    }
+  }
+
+  function showHiddenUpdates() {
+    const firstHiddenOrder = hiddenUpdatedOrders[0];
+
+    setQuery('');
+    setHiddenUpdatedOrders([]);
+
+    if (firstHiddenOrder) {
+      setSelectedInvoice(firstHiddenOrder.invoice);
     }
   }
 
@@ -645,6 +685,25 @@ function SalesOrdersContent() {
       {ordersError ? (
         <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {ordersError}
+        </div>
+      ) : null}
+
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card p-2.5 text-xs text-secondaryText">
+        <span>
+          Shared data syncs automatically every 15 seconds.
+          {lastSyncedAt ? ` Last synced ${lastSyncedAt.toLocaleTimeString()}.` : ''}
+        </span>
+        <Button size="small" onClick={() => loadSalesOrders(selectedInvoice, { showLoading: false })}>
+          Sync Now
+        </Button>
+      </div>
+
+      {hiddenUpdatedOrders.length > 0 ? (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-warningText/20 bg-warningBg p-3 text-sm text-warningText">
+          <span>
+            {hiddenUpdatedOrders.length} updated Sales Order{hiddenUpdatedOrders.length === 1 ? '' : 's'} may be hidden by the current search.
+          </span>
+          <Button size="small" onClick={showHiddenUpdates}>Show Latest</Button>
         </div>
       ) : null}
 

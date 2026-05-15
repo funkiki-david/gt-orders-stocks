@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { Button } from '@/components/Button';
 import { Drawer } from '@/components/Drawer';
@@ -142,6 +142,27 @@ function sortCustomers(customers: Customer[], sortKey: CustomerSortKey) {
   return sorted;
 }
 
+function customerMatchesQuery(customer: Customer, query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+
+  if (!normalizedQuery) return true;
+
+  return [
+    customer.name,
+    customer.payment,
+    customer.salesRep,
+    customer.contactPerson ?? '',
+    customer.phone ?? '',
+    customer.email ?? '',
+    customer.billingAddress ?? '',
+    customer.shippingAddress ?? '',
+    customer.paymentTerm ?? '',
+  ]
+    .join(' ')
+    .toLowerCase()
+    .includes(normalizedQuery);
+}
+
 export default function CustomersPage() {
   const router = useRouter();
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -157,6 +178,9 @@ export default function CustomersPage() {
   const [draftLine, setDraftLine] = useState<SalesOrderLineItem | null>(null);
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(true);
   const [customersError, setCustomersError] = useState('');
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [hiddenUpdatedCustomers, setHiddenUpdatedCustomers] = useState<Customer[]>([]);
+  const queryRef = useRef('');
 
   const loadCustomers = useCallback(
     async ({ showLoading = true }: { showLoading?: boolean } = {}) => {
@@ -178,8 +202,24 @@ export default function CustomersPage() {
         const nextCustomers = result.data.map((customer) => normalizeCustomer(customer.ui));
         const nextOrders = result.data.flatMap((customer) => customer.salesOrders.map((order) => mapSalesOrder(order)));
 
-        setCustomers(nextCustomers);
+        setCustomers((currentCustomers) => {
+          const currentByName = new Map(currentCustomers.map((customer) => [customer.name, customer]));
+          const changedCustomers = nextCustomers.filter((customer) => {
+            const currentCustomer = currentByName.get(customer.name);
+
+            return !currentCustomer || JSON.stringify(currentCustomer) !== JSON.stringify(customer);
+          });
+          const currentQuery = queryRef.current;
+          const hiddenCustomers = currentQuery.trim()
+            ? changedCustomers.filter((customer) => !customerMatchesQuery(customer, currentQuery))
+            : [];
+
+          setHiddenUpdatedCustomers(hiddenCustomers);
+
+          return nextCustomers;
+        });
         setOrders(nextOrders);
+        setLastSyncedAt(new Date());
         setSelectedCustomerName((current) => {
           if (current && nextCustomers.some((customer) => customer.name === current)) {
             return current;
@@ -210,6 +250,10 @@ export default function CustomersPage() {
   }, [loadCustomers]);
 
   useEffect(() => {
+    queryRef.current = query;
+  }, [query]);
+
+  useEffect(() => {
     const hasOpenDraft = Boolean(draft || paymentDraft || draftLine);
 
     async function refreshCustomers() {
@@ -236,24 +280,8 @@ export default function CustomersPage() {
   }, [draft, draftLine, loadCustomers, paymentDraft]);
 
   const filteredCustomers = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    const matchedCustomers = normalizedQuery
-      ? customers.filter((customer) =>
-          [
-            customer.name,
-            customer.payment,
-            customer.salesRep,
-            customer.contactPerson ?? '',
-            customer.phone ?? '',
-            customer.email ?? '',
-            customer.billingAddress ?? '',
-            customer.shippingAddress ?? '',
-            customer.paymentTerm ?? '',
-          ]
-            .join(' ')
-            .toLowerCase()
-            .includes(normalizedQuery),
-        )
+    const matchedCustomers = query.trim()
+      ? customers.filter((customer) => customerMatchesQuery(customer, query))
       : customers;
 
     return sortCustomers(matchedCustomers, sortKey);
@@ -278,6 +306,24 @@ export default function CustomersPage() {
     setSelectedCustomerName(customer.name);
     const firstOrder = orders.find((order) => order.customer.toLowerCase() === customer.name.toLowerCase());
     setSelectedInvoice(firstOrder?.invoice ?? '');
+  }
+
+  function handleSearch(value: string) {
+    setQuery(value);
+    if (!value.trim()) {
+      setHiddenUpdatedCustomers([]);
+    }
+  }
+
+  function showHiddenUpdates() {
+    const firstHiddenCustomer = hiddenUpdatedCustomers[0];
+
+    setQuery('');
+    setHiddenUpdatedCustomers([]);
+
+    if (firstHiddenCustomer) {
+      selectCustomer(firstHiddenCustomer);
+    }
   }
 
   function handleSortChange(value: CustomerSortKey) {
@@ -385,6 +431,25 @@ export default function CustomersPage() {
         </div>
       ) : null}
 
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card p-2.5 text-xs text-secondaryText">
+        <span>
+          Shared customer and order data syncs automatically every 15 seconds.
+          {lastSyncedAt ? ` Last synced ${lastSyncedAt.toLocaleTimeString()}.` : ''}
+        </span>
+        <Button size="small" onClick={() => loadCustomers({ showLoading: false })}>
+          Sync Now
+        </Button>
+      </div>
+
+      {hiddenUpdatedCustomers.length > 0 ? (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-warningText/20 bg-warningBg p-3 text-sm text-warningText">
+          <span>
+            {hiddenUpdatedCustomers.length} updated Customer{hiddenUpdatedCustomers.length === 1 ? '' : 's'} may be hidden by the current search.
+          </span>
+          <Button size="small" onClick={showHiddenUpdates}>Show Latest</Button>
+        </div>
+      ) : null}
+
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2">
         <div className="flex flex-wrap gap-4 text-[13px] text-primaryText">
           <span><strong>{filteredCustomers.length}</strong> Customers</span>
@@ -395,7 +460,7 @@ export default function CustomersPage() {
       </div>
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <SearchBar value={query} onChange={setQuery} placeholder="Search Customer / Contact / Phone / Address / Payment Term" />
+        <SearchBar value={query} onChange={handleSearch} placeholder="Search Customer / Contact / Phone / Address / Payment Term" />
         <Button variant="primary" onClick={openAddCustomerDrawer}>Add Customer</Button>
       </div>
 
