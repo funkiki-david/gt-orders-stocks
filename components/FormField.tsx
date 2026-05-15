@@ -5,9 +5,10 @@ type FormFieldProps = {
   type?: string;
   multiline?: boolean;
   placeholder?: string;
+  list?: string;
 };
 
-export function FormField({ label, value, onChange, type = 'text', multiline = false, placeholder }: FormFieldProps) {
+export function FormField({ label, value, onChange, type = 'text', multiline = false, placeholder, list }: FormFieldProps) {
   return (
     <label className="block">
       <span className="mb-1.5 block text-[13px] font-medium text-primaryText">{label}</span>

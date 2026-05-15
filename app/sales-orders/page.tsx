@@ -74,6 +74,42 @@ type MutationResponse =
       error: string;
     };
 
+type CustomerSuggestion = {
+  companyName: string;
+  paymentTerm: string | null;
+  ui?: {
+    salesRep?: string;
+  };
+};
+
+type ProductSuggestion = {
+  skuCode: string;
+  productName: string;
+  category: string | null;
+  sellingPrice: string | number | null;
+  availableQty?: number;
+};
+
+type CustomersLookupResponse =
+  | {
+      ok: true;
+      data: CustomerSuggestion[];
+    }
+  | {
+      ok: false;
+      error: string;
+    };
+
+type ProductsLookupResponse =
+  | {
+      ok: true;
+      data: ProductSuggestion[];
+    }
+  | {
+      ok: false;
+      error: string;
+    };
+
 function fulfillmentStatusValue(value: FulfillmentStatus) {
   if (value === 'Shipped') return 'SHIPPED';
   if (value === 'Billed Closed') return 'BILLED_CLOSED';
@@ -214,6 +250,31 @@ function orderMatchesQuery(order: SalesOrder, query: string) {
     .includes(normalizedQuery);
 }
 
+function matchCustomerSuggestion(customers: CustomerSuggestion[], value: string) {
+  const normalizedValue = value.trim().toLowerCase();
+
+  if (!normalizedValue) return undefined;
+
+  return customers.find((customer) => customer.companyName.toLowerCase() === normalizedValue);
+}
+
+function matchProductSuggestion(products: ProductSuggestion[], value: string) {
+  const normalizedValue = value.trim().toLowerCase();
+
+  if (!normalizedValue) return undefined;
+
+  return products.find((product) => product.skuCode.toLowerCase() === normalizedValue);
+}
+
+function productPatch(product: ProductSuggestion) {
+  return {
+    sku: product.skuCode,
+    description: product.productName,
+    category: product.category ?? '',
+    unitPrice: product.sellingPrice === null || product.sellingPrice === undefined ? 0 : Number(product.sellingPrice),
+  };
+}
+
 export default function SalesOrdersPage() {
   return (
     <Suspense fallback={<SalesOrdersLoading />}>
@@ -253,6 +314,9 @@ function SalesOrdersContent() {
   const [createError, setCreateError] = useState('');
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [hiddenUpdatedOrders, setHiddenUpdatedOrders] = useState<SalesOrder[]>([]);
+  const [customerSuggestions, setCustomerSuggestions] = useState<CustomerSuggestion[]>([]);
+  const [productSuggestions, setProductSuggestions] = useState<ProductSuggestion[]>([]);
+  const [suggestionsError, setSuggestionsError] = useState('');
   const queryRef = useRef('');
 
   const loadSalesOrders = useCallback(async (preferredInvoice?: string, { showLoading = true }: { showLoading?: boolean } = {}) => {
@@ -308,6 +372,43 @@ function SalesOrdersContent() {
   useEffect(() => {
     queryRef.current = query;
   }, [query]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadSuggestions() {
+      try {
+        const [customersResponse, productsResponse] = await Promise.all([
+          fetch('/api/customers', { cache: 'no-store' }),
+          fetch('/api/products', { cache: 'no-store' }),
+        ]);
+        const customersResult = (await customersResponse.json()) as CustomersLookupResponse;
+        const productsResult = (await productsResponse.json()) as ProductsLookupResponse;
+
+        if (!customersResponse.ok || !customersResult.ok) {
+          throw new Error(customersResult.ok ? 'Failed to load customer suggestions' : customersResult.error);
+        }
+
+        if (!productsResponse.ok || !productsResult.ok) {
+          throw new Error(productsResult.ok ? 'Failed to load product suggestions' : productsResult.error);
+        }
+
+        if (!isMounted) return;
+
+        setCustomerSuggestions(customersResult.data);
+        setProductSuggestions(productsResult.data);
+      } catch (error) {
+        if (!isMounted) return;
+        setSuggestionsError(error instanceof Error ? error.message : 'Failed to load suggestions');
+      }
+    }
+
+    loadSuggestions();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -554,6 +655,39 @@ function SalesOrdersContent() {
     });
   }
 
+  function updateCreateCustomer(value: string) {
+    if (!createDraft) return;
+
+    const matchedCustomer = matchCustomerSuggestion(customerSuggestions, value);
+
+    setCreateDraft({
+      ...createDraft,
+      customer: value,
+      payment: matchedCustomer?.paymentTerm && !createDraft.payment ? matchedCustomer.paymentTerm : createDraft.payment,
+      salesRep:
+        matchedCustomer?.ui?.salesRep && matchedCustomer.ui.salesRep !== '—' && !createDraft.salesRep
+          ? matchedCustomer.ui.salesRep
+          : createDraft.salesRep,
+    });
+  }
+
+  function updateCreateLineSku(index: number, value: string) {
+    const matchedProduct = matchProductSuggestion(productSuggestions, value);
+
+    updateCreateLine(index, matchedProduct ? productPatch(matchedProduct) : { sku: value });
+  }
+
+  function updateDraftLineSku(value: string) {
+    if (!draftLine) return;
+
+    const matchedProduct = matchProductSuggestion(productSuggestions, value);
+
+    setDraftLine({
+      ...draftLine,
+      ...(matchedProduct ? productPatch(matchedProduct) : { sku: value }),
+    });
+  }
+
   function addCreateLine() {
     if (!createDraft) return;
 
@@ -687,6 +821,31 @@ function SalesOrdersContent() {
           {ordersError}
         </div>
       ) : null}
+
+      {suggestionsError ? (
+        <div className="mb-3 rounded-xl border border-warningText/20 bg-warningBg p-3 text-xs text-warningText">
+          Suggestions are unavailable right now: {suggestionsError}
+        </div>
+      ) : null}
+
+      <datalist id="customer-suggestions">
+        {customerSuggestions.map((customer) => (
+          <option key={customer.companyName} value={customer.companyName}>
+            {customer.paymentTerm ? `${customer.companyName} - ${customer.paymentTerm}` : customer.companyName}
+          </option>
+        ))}
+      </datalist>
+
+      <datalist id="product-suggestions">
+        <option value="SHIPPING">Shipping charge</option>
+        {productSuggestions.map((product) => (
+          <option key={product.skuCode} value={product.skuCode}>
+            {product.availableQty === undefined
+              ? product.productName
+              : `${product.productName} - available ${product.availableQty}`}
+          </option>
+        ))}
+      </datalist>
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card p-2.5 text-xs text-secondaryText">
         <span>
@@ -908,7 +1067,13 @@ function SalesOrdersContent() {
               <FormField label="Order Date" type="date" value={createDraft.date} onChange={updateCreateOrderDate} />
               <FormField label="Ship Date" type="date" value={createDraft.shipDate} onChange={(value) => setCreateDraft({ ...createDraft, shipDate: value })} />
             </div>
-            <FormField label="Customer *" value={createDraft.customer} onChange={(value) => setCreateDraft({ ...createDraft, customer: value })} />
+            <FormField
+              label="Customer *"
+              value={createDraft.customer}
+              list="customer-suggestions"
+              placeholder="Start typing a customer name"
+              onChange={updateCreateCustomer}
+            />
             <div className="grid gap-3 sm:grid-cols-2">
               <FormField label="PO #" value={createDraft.po} onChange={(value) => setCreateDraft({ ...createDraft, po: value })} />
               <FormField label="Sales Rep" value={createDraft.salesRep} onChange={(value) => setCreateDraft({ ...createDraft, salesRep: value })} />
@@ -941,7 +1106,8 @@ function SalesOrdersContent() {
                   label="SKU Code *"
                   value={item.sku}
                   placeholder="SKU code or SHIPPING"
-                  onChange={(value) => updateCreateLine(index, { sku: value })}
+                  list="product-suggestions"
+                  onChange={(value) => updateCreateLineSku(index, value)}
                 />
                 <FormField
                   label="Description *"
@@ -1025,7 +1191,8 @@ function SalesOrdersContent() {
               label="SKU Code"
               value={draftLine.sku}
               placeholder={lineDrawerMode === 'add' ? 'SKU code or SHIPPING' : undefined}
-              onChange={(value) => setDraftLine({ ...draftLine, sku: value })}
+              list="product-suggestions"
+              onChange={updateDraftLineSku}
             />
             <FormField
               label="Description"
