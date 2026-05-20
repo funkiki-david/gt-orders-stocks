@@ -65,6 +65,16 @@ type CustomersResponse =
       error: string;
     };
 
+type CustomerMutationResponse =
+  | {
+      ok: true;
+      data: unknown;
+    }
+  | {
+      ok: false;
+      error: string;
+    };
+
 function normalizeCustomer(customer: Customer): Customer {
   return {
     ...customer,
@@ -74,6 +84,7 @@ function normalizeCustomer(customer: Customer): Customer {
     billingAddress: customer.billingAddress ?? '',
     shippingAddress: customer.shippingAddress ?? '',
     paymentTerm: customer.paymentTerm ?? '',
+    salesRep: customer.salesRep ?? '',
     notes: customer.notes ?? '',
   };
 }
@@ -178,6 +189,8 @@ export default function CustomersPage() {
   const [draftLine, setDraftLine] = useState<SalesOrderLineItem | null>(null);
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(true);
   const [customersError, setCustomersError] = useState('');
+  const [customerSaveError, setCustomerSaveError] = useState('');
+  const [isSavingCustomer, setIsSavingCustomer] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [hiddenUpdatedCustomers, setHiddenUpdatedCustomers] = useState<Customer[]>([]);
   const queryRef = useRef('');
@@ -335,26 +348,58 @@ export default function CustomersPage() {
   function openEditCustomerDrawer(customer: Customer) {
     setEditingCustomer(customer);
     setDraft(normalizeCustomer(customer));
+    setCustomerSaveError('');
   }
 
   function openAddCustomerDrawer() {
     setEditingCustomer(null);
     setDraft(makeBlankCustomer());
+    setCustomerSaveError('');
   }
 
-  function saveCustomerDraft() {
+  async function saveCustomerDraft() {
     if (!draft) return;
-
-    if (editingCustomer) {
-      setCustomers((current) => current.map((customer) => (customer.name === editingCustomer.name ? draft : customer)));
-      setSelectedCustomerName(draft.name);
-    } else {
-      setCustomers((current) => [draft, ...current]);
-      setSelectedCustomerName(draft.name);
+    if (editingCustomer && !editingCustomer.id) {
+      setCustomerSaveError('Could not update customer because the database id is missing.');
+      return;
     }
 
-    setDraft(null);
-    setEditingCustomer(null);
+    setIsSavingCustomer(true);
+    setCustomerSaveError('');
+
+    try {
+      const response = await fetch(editingCustomer ? `/api/customers/${editingCustomer.id}` : '/api/customers', {
+        method: editingCustomer ? 'PATCH' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          companyName: draft.name,
+          contactPerson: draft.contactPerson,
+          phone: draft.phone,
+          email: draft.email,
+          billingAddress: draft.billingAddress,
+          shippingAddress: draft.shippingAddress,
+          paymentTerm: draft.paymentTerm,
+          salesRep: draft.salesRep,
+          notes: draft.notes,
+        }),
+      });
+      const result = (await response.json()) as CustomerMutationResponse;
+
+      if (!response.ok || !result.ok) {
+        throw new Error(result.ok ? 'Could not save customer' : result.error);
+      }
+
+      await loadCustomers({ showLoading: false });
+      setSelectedCustomerName(draft.name);
+      setDraft(null);
+      setEditingCustomer(null);
+    } catch (error) {
+      setCustomerSaveError(error instanceof Error ? error.message : 'Could not save customer');
+    } finally {
+      setIsSavingCustomer(false);
+    }
   }
 
   function openPaymentDrawer(order: SalesOrder) {
@@ -541,21 +586,37 @@ export default function CustomersPage() {
         title={editingCustomer ? 'Edit Customer' : 'Add Customer'}
         helper="Create or update customer master data. Order totals are calculated automatically from Sales Orders."
         open={Boolean(draft)}
-        onClose={() => setDraft(null)}
+        onClose={() => {
+          if (isSavingCustomer) return;
+          setDraft(null);
+          setEditingCustomer(null);
+          setCustomerSaveError('');
+        }}
         onSave={saveCustomerDraft}
       >
         {draft ? (
           <div className="grid gap-4">
+            {customerSaveError ? (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                {customerSaveError}
+              </div>
+            ) : null}
+            {isSavingCustomer ? (
+              <div className="rounded-xl border border-border bg-page p-3 text-xs text-secondaryText">
+                Saving customer to database...
+              </div>
+            ) : null}
             <FormField label="Company Name *" value={draft.name} onChange={(value) => setDraft({ ...draft, name: value })} />
             <FormField label="Contact Person Name" value={draft.contactPerson ?? ''} onChange={(value) => setDraft({ ...draft, contactPerson: value })} />
             <FormField label="Phone" value={draft.phone ?? ''} onChange={(value) => setDraft({ ...draft, phone: value })} />
             <FormField label="Email" value={draft.email ?? ''} onChange={(value) => setDraft({ ...draft, email: value })} />
+            <FormField label="Sales Rep" value={draft.salesRep ?? ''} onChange={(value) => setDraft({ ...draft, salesRep: value })} />
             <FormField label="Billing Address" value={draft.billingAddress ?? ''} onChange={(value) => setDraft({ ...draft, billingAddress: value })} multiline />
             <FormField label="Default Shipping Address" value={draft.shippingAddress ?? ''} onChange={(value) => setDraft({ ...draft, shippingAddress: value })} multiline />
             <FormField label="Payment Term" value={draft.paymentTerm ?? ''} onChange={(value) => setDraft({ ...draft, paymentTerm: value })} />
             <FormField label="Notes" value={draft.notes ?? ''} onChange={(value) => setDraft({ ...draft, notes: value })} multiline />
             <div className="rounded-xl bg-warningBg p-3 text-xs text-warningText">
-              Orders, Sales Total, and Last Order are system-calculated fields. They are not entered when adding a customer.
+              Orders, Sales Total, and Last Order are system-calculated fields. Customer profile fields save to PostgreSQL.
             </div>
           </div>
         ) : null}

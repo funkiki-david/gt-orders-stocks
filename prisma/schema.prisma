@@ -48,6 +48,7 @@ model Customer {
   billingAddress  String?
   shippingAddress String?
   paymentTerm     String?
+  salesRep         String?
   notes           String?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt

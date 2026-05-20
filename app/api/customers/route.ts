@@ -21,6 +21,34 @@ function fulfillmentLabel(status: string) {
   return 'Open';
 }
 
+type CustomerInput = {
+  companyName?: unknown;
+  contactPerson?: unknown;
+  phone?: unknown;
+  email?: unknown;
+  billingAddress?: unknown;
+  shippingAddress?: unknown;
+  paymentTerm?: unknown;
+  salesRep?: unknown;
+  notes?: unknown;
+};
+
+function optionalString(value: unknown) {
+  if (value === undefined || value === null) return null;
+  const text = String(value).trim();
+  return text ? text : null;
+}
+
+function requiredString(value: unknown, field: string) {
+  const text = optionalString(value);
+
+  if (!text) {
+    throw new Error(`Invalid ${field}`);
+  }
+
+  return text;
+}
+
 export async function GET() {
   try {
     const customers = await prisma.customer.findMany({
@@ -56,6 +84,7 @@ export async function GET() {
       const totalAmount = customer.salesOrders.reduce((sum, order) => sum + Number(order.subtotal), 0);
       const lastOrder = customer.salesOrders[0]?.orderDate ?? null;
       const salesRep =
+        customer.salesRep ??
         customer.salesOrders.find((order) => order.salesRep)?.salesRep ??
         '—';
       const paymentStatuses = Array.from(
@@ -71,6 +100,7 @@ export async function GET() {
         billingAddress: customer.billingAddress,
         shippingAddress: customer.shippingAddress,
         paymentTerm: customer.paymentTerm,
+        salesRep: customer.salesRep,
         notes: customer.notes,
         createdAt: customer.createdAt,
         updatedAt: customer.updatedAt,
@@ -83,6 +113,7 @@ export async function GET() {
           lastOrder: formatDate(lastOrder),
         },
         ui: {
+          id: customer.id,
           name: customer.companyName,
           orders: totalOrders,
           total: totalAmount,
@@ -142,6 +173,40 @@ export async function GET() {
         error: 'Failed to load customers',
       },
       { status: 500 },
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = (await request.json()) as CustomerInput;
+    const customer = await prisma.customer.create({
+      data: {
+        companyName: requiredString(body.companyName, 'companyName'),
+        contactPerson: optionalString(body.contactPerson),
+        phone: optionalString(body.phone),
+        email: optionalString(body.email),
+        billingAddress: optionalString(body.billingAddress),
+        shippingAddress: optionalString(body.shippingAddress),
+        paymentTerm: optionalString(body.paymentTerm),
+        salesRep: optionalString(body.salesRep),
+        notes: optionalString(body.notes),
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      data: customer,
+    });
+  } catch (error) {
+    console.error('Failed to create customer', error);
+
+    return NextResponse.json(
+      {
+        ok: false,
+        error: 'Failed to create customer',
+      },
+      { status: error instanceof Error && error.message.startsWith('Invalid') ? 400 : 500 },
     );
   }
 }

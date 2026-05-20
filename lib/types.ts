@@ -7,6 +7,7 @@ export type InventoryItem = {
 };
 
 export type Customer = {
+  id?: string;
   name: string;
   orders: number;
   total: number;
