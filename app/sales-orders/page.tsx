@@ -161,17 +161,25 @@ function createBlankSalesOrderLine(): SalesOrderLineItem {
 }
 
 function isGeneratedSalesOrderNumber(value: string) {
-  return /^GT-\d{4}-\d{2}-\d{2}-\d+$/.test(value);
+  return /^GT-\d{4}-(?:\d{2}-\d{2}|\d{4})-\d+$/.test(value);
 }
 
 function nextSalesOrderNumber(orders: SalesOrder[], date: string) {
   const orderDate = date || todayValue();
-  const prefix = `GT-${orderDate}-`;
+  const [year, month, day] = orderDate.split('-');
+  const prefix = `GT-${year}-${month}${day}-`;
+  const legacyPrefix = `GT-${orderDate}-`;
   const nextSequence =
     orders.reduce((maxSequence, order) => {
-      if (!order.invoice.startsWith(prefix)) return maxSequence;
+      const matchingPrefix = order.invoice.startsWith(prefix)
+        ? prefix
+        : order.invoice.startsWith(legacyPrefix)
+          ? legacyPrefix
+          : '';
 
-      const sequence = Number(order.invoice.slice(prefix.length));
+      if (!matchingPrefix) return maxSequence;
+
+      const sequence = Number(order.invoice.slice(matchingPrefix.length));
 
       return Number.isInteger(sequence) && sequence > maxSequence ? sequence : maxSequence;
     }, 0) + 1;
